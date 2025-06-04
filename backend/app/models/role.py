@@ -1,25 +1,25 @@
-from enum import Enum
-from pydantic import BaseModel
+from typing import Optional
+from pydantic import BaseModel, Field
 from .base import BaseDBModel, BaseCreateModel, BaseUpdateModel
 
-class RoleType(str, Enum):
-    CHAIRMAN = "CHAIRMAN"
-    DEPUTY_CHAIRMAN = "DEPUTY_CHAIRMAN"
-    DIVISION_HEAD = "DIVISION_HEAD"
-    DORMITORY_HEAD = "DORMITORY_HEAD"
 
 class RoleBase(BaseModel):
-    name: str
-    type: RoleType
-    description: str | None = None
+    name: str = Field(..., description="Название роли")
+
 
 class Role(BaseDBModel, RoleBase):
+    """Модель роли из БД"""
     pass
+
 
 class RoleCreate(BaseCreateModel, RoleBase):
+    """Модель для создания роли"""
     pass
 
+
 class RoleUpdate(BaseUpdateModel):
-    name: str | None = None
-    type: RoleType | None = None
-    description: str | None = None
+    """Модель для обновления роли"""
+    name: Optional[str] = None
+
+class RoleType(BaseModel):
+    name: Optional[str] = None

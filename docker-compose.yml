@@ -16,7 +16,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d student_union"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,8 +26,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: student_union_pgadmin
     environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
       - PGADMIN_CONFIG_SERVER_MODE=False
     ports:
       - "5050:80"
@@ -41,6 +41,7 @@ services:
 
   backend:
     build: ./backend
+    container_name: student_union_backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -48,11 +49,22 @@ services:
       - "8000:8000"
     environment:
       - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=student_union
+      - SECRET_KEY=your-secret-key-here-change-in-production
+      - FIRST_SUPERUSER_EMAIL=admin@example.com
+      - FIRST_SUPERUSER_PASSWORD=admin123
+      - FIRST_SUPERUSER_USERNAME=admin
+      - DEBUG=true
+      - LOG_LEVEL=INFO
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
@@ -64,6 +76,7 @@ services:
       - "3000:3000"
     environment:
       - REACT_APP_API_URL=http://localhost:8000/api/v1
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
     networks:

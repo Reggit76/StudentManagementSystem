@@ -1,18 +1,17 @@
 from typing import Optional, List, Dict, Any, TypeVar, Generic, Type
-from asyncpg import Connection
+from asyncpg import Connection, Pool
+from contextlib import asynccontextmanager
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
 
-T = TypeVar('T')
-ModelType = TypeVar("ModelType", bound=BaseModel)
-CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
-UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
+T = TypeVar('T', bound=BaseModel)
 
-class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
+
+class BaseRepository(Generic[T], ABC):
     """Базовый репозиторий с общими CRUD операциями"""
     
-    def __init__(self, conn: Connection):
-        self.conn = conn
+    def __init__(self, pool: Pool):
+        self.pool = pool
     
     @property
     @abstractmethod
@@ -22,17 +21,33 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC
     
     @property
     @abstractmethod
-    def model_class(self) -> Type[ModelType]:
+    def model_class(self) -> Type[T]:
         """Класс модели Pydantic"""
         pass
     
-    async def get_by_id(self, id: int, conn: Optional[Connection] = None) -> Optional[ModelType]:
+    @asynccontextmanager
+    async def _get_connection(self, conn: Optional[Connection] = None):
+        """Получить соединение с БД"""
+        if conn:
+            yield conn
+        else:
+            async with self.pool.acquire() as connection:
+                yield connection
+    
+    async def get_by_id(self, id: int, conn: Optional[Connection] = None) -> Optional[T]:
         """Получить запись по ID"""
         query = f"SELECT * FROM {self.table_name} WHERE id = $1"
         
         async with self._get_connection(conn) as connection:
             row = await connection.fetchrow(query, id)
             return self.model_class(**dict(row)) if row else None
+    
+    async def exists(self, id: int, conn: Optional[Connection] = None) -> bool:
+        """Проверить существование записи"""
+        query = f"SELECT EXISTS(SELECT 1 FROM {self.table_name} WHERE id = $1)"
+        
+        async with self._get_connection(conn) as connection:
+            return await connection.fetchval(query, id)
     
     async def get_all(
         self, 
@@ -41,7 +56,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC
         order_by: str = "id",
         order_desc: bool = False,
         conn: Optional[Connection] = None
-    ) -> List[ModelType]:
+    ) -> List[T]:
         """Получить все записи с пагинацией"""
         order = "DESC" if order_desc else "ASC"
         query = f"""
@@ -103,29 +118,3 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC
         
         where_clause = " AND ".join(conditions)
         return where_clause, params
-    
-    async def _get_connection(self, conn: Optional[Connection]) -> Connection:
-        """Получить соединение с БД"""
-        return conn if conn else self.conn
-    
-    async def execute_query(self, query: str, *args, conn: Optional[Connection] = None):
-        """Выполнить произвольный запрос"""
-        async with self._get_connection(conn) as connection:
-            return await connection.fetch(query, *args)
-    
-    async def execute_many(self, query: str, args_list: List[tuple], conn: Optional[Connection] = None):
-        """Выполнить запрос для множества параметров"""
-        async with self._get_connection(conn) as connection:
-            return await connection.executemany(query, args_list)
-
-    async def execute(self, query: str, *args) -> str:
-        return await self.conn.execute(query, *args)
-
-    async def fetch(self, query: str, *args) -> List[Any]:
-        return await self.conn.fetch(query, *args)
-
-    async def fetchrow(self, query: str, *args) -> Optional[Any]:
-        return await self.conn.fetchrow(query, *args)
-
-    async def fetchval(self, query: str, *args) -> Any:
-        return await self.conn.fetchval(query, *args)

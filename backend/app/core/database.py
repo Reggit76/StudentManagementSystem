@@ -1,10 +1,10 @@
 import asyncpg
 from asyncpg import Pool
-from typing import Optional, AsyncGenerator
+from typing import Optional
 from contextlib import asynccontextmanager
 from loguru import logger
-from app.core.config import settings
-from fastapi import Depends
+from .config import settings
+
 
 class Database:
     """Класс для работы с БД"""
@@ -70,11 +70,13 @@ class Database:
         """Получить одно значение"""
         async with self.acquire() as connection:
             return await connection.fetchval(query, *args)
+    
+    async def get_pool(self) -> Pool:
+        """Получить пул соединений"""
+        if not self.pool:
+            await self.connect()
+        return self.pool
+
 
 # Создаем глобальный экземпляр базы данных
 db = Database()
-
-async def get_db():
-    """Dependency для получения соединения с БД"""
-    async with db.acquire() as conn:
-        yield conn

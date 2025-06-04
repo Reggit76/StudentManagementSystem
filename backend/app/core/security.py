@@ -5,7 +5,7 @@ from jose import JWTError, jwt
 from loguru import logger
 import secrets
 import hashlib
-from ..config import settings
+from .config import settings
 
 # Контекст для хеширования паролей
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

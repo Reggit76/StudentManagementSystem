@@ -1,114 +1,160 @@
-CREATE TABLE Subdivisions (
-  ID SERIAL PRIMARY KEY,
-  Name VARCHAR(16) UNIQUE NOT NULL
+-- Создание основных таблиц системы управления профсоюзом
+
+-- Подразделения
+CREATE TABLE subdivisions (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE Roles (
-  ID SERIAL PRIMARY KEY,
-  Name VARCHAR(50) UNIQUE NOT NULL
+-- Роли пользователей
+CREATE TABLE roles (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(50) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE AdditionalStatuses (
-  ID SERIAL PRIMARY KEY,
-  Name VARCHAR(50) UNIQUE NOT NULL
+-- Дополнительные статусы студентов
+CREATE TABLE additionalstatuses (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE Groups (
-  ID SERIAL PRIMARY KEY,
-  SubdivisionID INT NOT NULL,
-  Name VARCHAR(255) UNIQUE NOT NULL,
-  Year INT NOT NULL DEFAULT 2024
+-- Группы
+CREATE TABLE groups (
+  id SERIAL PRIMARY KEY,
+  subdivisionid INT NOT NULL,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  year INT NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_groups_subdivision FOREIGN KEY (subdivisionid) REFERENCES subdivisions(id) ON DELETE CASCADE
 );
 
-CREATE TABLE Users (
-  ID SERIAL PRIMARY KEY,
-  Login VARCHAR(50) UNIQUE NOT NULL,
-  PasswordHash VARCHAR(255) NOT NULL,
-  SubdivisionID INT
+-- Пользователи системы
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  login VARCHAR(50) UNIQUE NOT NULL,
+  passwordhash VARCHAR(255) NOT NULL,
+  subdivisionid INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_subdivision FOREIGN KEY (subdivisionid) REFERENCES subdivisions(id) ON DELETE SET NULL
 );
 
-CREATE TABLE UserRoles (
-  UserID INT NOT NULL,
-  RoleID INT NOT NULL,
-  PRIMARY KEY (UserID, RoleID)
+-- Связь пользователей и ролей
+CREATE TABLE userroles (
+  userid INT NOT NULL,
+  roleid INT NOT NULL,
+  PRIMARY KEY (userid, roleid),
+  CONSTRAINT fk_userroles_user FOREIGN KEY (userid) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_userroles_role FOREIGN KEY (roleid) REFERENCES roles(id) ON DELETE CASCADE
 );
 
-CREATE TABLE StudentData (
-  ID SERIAL PRIMARY KEY,
-  Phone VARCHAR(15),
-  Email VARCHAR(255) UNIQUE,
-  Birthday DATETIME
+-- Дополнительные данные студентов
+CREATE TABLE studentdata (
+  id SERIAL PRIMARY KEY,
+  phone VARCHAR(20),
+  email VARCHAR(255),
+  birthday DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE Students (
-  ID SERIAL PRIMARY KEY,
-  GroupID INT NOT NULL,
-  FullName VARCHAR(255) NOT NULL,
-  IsActive BOOLEAN NOT NULL DEFAULT false,
-  IsBudget BOOLEAN NOT NULL,
-  DataID INT UNIQUE,
-  Year INT NOT NULL DEFAULT 2024
+-- Студенты
+CREATE TABLE students (
+  id SERIAL PRIMARY KEY,
+  groupid INT NOT NULL,
+  fullname VARCHAR(255) NOT NULL,
+  isactive BOOLEAN NOT NULL DEFAULT false,
+  isbudget BOOLEAN NOT NULL DEFAULT true,
+  dataid INT UNIQUE,
+  year INT NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_students_group FOREIGN KEY (groupid) REFERENCES groups(id) ON DELETE CASCADE,
+  CONSTRAINT fk_students_data FOREIGN KEY (dataid) REFERENCES studentdata(id) ON DELETE SET NULL
 );
 
-CREATE TABLE HostelStudents (
-  ID SERIAL PRIMARY KEY,
-  StudentID INT UNIQUE NOT NULL,
-  Hostel INT NOT NULL,
-  Room INT NOT NULL,
-  Comment VARCHAR(255)
+-- Проживающие в общежитии
+CREATE TABLE hostelstudents (
+  id SERIAL PRIMARY KEY,
+  studentid INT UNIQUE NOT NULL,
+  hostel INT NOT NULL CHECK (hostel BETWEEN 1 AND 20),
+  room INT NOT NULL CHECK (room > 0),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_hostelstudents_student FOREIGN KEY (studentid) REFERENCES students(id) ON DELETE CASCADE
 );
 
-CREATE TABLE StudentAdditionalStatuses (
-  StudentID INT NOT NULL,
-  StatusID INT NOT NULL,
-  PRIMARY KEY (StudentID, StatusID)
+-- Связь студентов и дополнительных статусов
+CREATE TABLE studentadditionalstatuses (
+  studentid INT NOT NULL,
+  statusid INT NOT NULL,
+  PRIMARY KEY (studentid, statusid),
+  CONSTRAINT fk_studentstatuses_student FOREIGN KEY (studentid) REFERENCES students(id) ON DELETE CASCADE,
+  CONSTRAINT fk_studentstatuses_status FOREIGN KEY (statusid) REFERENCES additionalstatuses(id) ON DELETE CASCADE
 );
 
-CREATE TABLE Contributions (
-  ID SERIAL PRIMARY KEY,
-  StudentID INT NOT NULL,
-  Semester INT NOT NULL,
-  Amount DECIMAL(10,2) NOT NULL,
-  PaymentDate DATE,
-  Year INT NOT NULL DEFAULT 2024
+-- Взносы студентов
+CREATE TABLE contributions (
+  id SERIAL PRIMARY KEY,
+  studentid INT NOT NULL,
+  semester INT NOT NULL CHECK (semester IN (1, 2)),
+  amount DECIMAL(10,2) NOT NULL CHECK (amount >= 0),
+  paymentdate DATE,
+  year INT NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_contributions_student FOREIGN KEY (studentid) REFERENCES students(id) ON DELETE CASCADE,
+  CONSTRAINT uk_contributions_student_year UNIQUE (studentid, year)
 );
 
-CREATE UNIQUE INDEX ON Contributions (StudentID, Year);
+-- Создание индексов для оптимизации
+CREATE INDEX idx_groups_subdivision ON groups(subdivisionid);
+CREATE INDEX idx_groups_year ON groups(year);
+CREATE INDEX idx_students_group ON students(groupid);
+CREATE INDEX idx_students_active ON students(isactive);
+CREATE INDEX idx_students_year ON students(year);
+CREATE INDEX idx_students_fullname ON students(fullname);
+CREATE INDEX idx_hostelstudents_hostel ON hostelstudents(hostel);
+CREATE INDEX idx_hostelstudents_room ON hostelstudents(hostel, room);
+CREATE INDEX idx_contributions_student ON contributions(studentid);
+CREATE INDEX idx_contributions_year ON contributions(year);
+CREATE INDEX idx_contributions_payment ON contributions(paymentdate);
 
-COMMENT ON TABLE Subdivisions IS 'Подразделения университета';
+-- Функция обновления timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
-COMMENT ON TABLE Roles IS 'Роли пользователей системы';
+-- Триггеры для автоматического обновления updated_at
+CREATE TRIGGER update_subdivisions_updated_at BEFORE UPDATE ON subdivisions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON roles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_additionalstatuses_updated_at BEFORE UPDATE ON additionalstatuses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_groups_updated_at BEFORE UPDATE ON groups FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_studentdata_updated_at BEFORE UPDATE ON studentdata FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_students_updated_at BEFORE UPDATE ON students FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_hostelstudents_updated_at BEFORE UPDATE ON hostelstudents FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_contributions_updated_at BEFORE UPDATE ON contributions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-COMMENT ON TABLE AdditionalStatuses IS 'Дополнительные статусы студентов';
-
-COMMENT ON TABLE Groups IS 'Учебные группы с привязкой к учебному году';
-
-COMMENT ON TABLE Users IS 'Пользователи системы с привязкой к подразделениям';
-
-COMMENT ON TABLE StudentData IS 'Информация о студенте';
-
-COMMENT ON TABLE Students IS 'Основные данные студентов с привязкой к учебному году';
-
-COMMENT ON TABLE HostelStudents IS 'Статус проживания в общежитии';
-
-COMMENT ON TABLE Contributions IS 'Взносы студентов за семестры с привязкой к учебному году';
-
-ALTER TABLE Groups ADD FOREIGN KEY (SubdivisionID) REFERENCES Subdivisions (ID) ON DELETE CASCADE;
-
-ALTER TABLE Users ADD FOREIGN KEY (SubdivisionID) REFERENCES Subdivisions (ID) ON DELETE SET NULL;
-
-ALTER TABLE UserRoles ADD FOREIGN KEY (UserID) REFERENCES Users (ID) ON DELETE CASCADE;
-
-ALTER TABLE UserRoles ADD FOREIGN KEY (RoleID) REFERENCES Roles (ID) ON DELETE CASCADE;
-
-ALTER TABLE Students ADD FOREIGN KEY (GroupID) REFERENCES Groups (ID) ON DELETE CASCADE;
-
-ALTER TABLE Students ADD FOREIGN KEY (DataID) REFERENCES StudentData (ID) ON DELETE SET NULL;
-
-ALTER TABLE HostelStudents ADD FOREIGN KEY (StudentID) REFERENCES Students (ID) ON DELETE CASCADE;
-
-ALTER TABLE StudentAdditionalStatuses ADD FOREIGN KEY (StudentID) REFERENCES Students (ID) ON DELETE CASCADE;
-
-ALTER TABLE StudentAdditionalStatuses ADD FOREIGN KEY (StatusID) REFERENCES AdditionalStatuses (ID) ON DELETE CASCADE;
-
-ALTER TABLE Contributions ADD FOREIGN KEY (StudentID) REFERENCES Students (ID) ON DELETE CASCADE;
+-- Комментарии к таблицам
+COMMENT ON TABLE subdivisions IS 'Подразделения университета';
+COMMENT ON TABLE roles IS 'Роли пользователей системы';
+COMMENT ON TABLE additionalstatuses IS 'Дополнительные статусы студентов';
+COMMENT ON TABLE groups IS 'Учебные группы';
+COMMENT ON TABLE users IS 'Пользователи системы';
+COMMENT ON TABLE studentdata IS 'Дополнительная информация о студентах';
+COMMENT ON TABLE students IS 'Основные данные студентов';
+COMMENT ON TABLE hostelstudents IS 'Данные о проживании в общежитии';
+COMMENT ON TABLE contributions IS 'Взносы студентов';

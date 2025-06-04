@@ -1,322 +1,260 @@
 from typing import List, Optional
+from decimal import Decimal
+from datetime import date
 from fastapi import APIRouter, HTTPException, status, Query
 from loguru import logger
 
-from ...models.user import User, UserCreate, UserUpdate
-from ...models.auth import ChangePasswordRequest
+from ...models.contribution import (
+    Contribution, ContributionCreate, ContributionUpdate, ContributionSummary
+)
 from ...models.common import PaginatedResponse, SuccessResponse
-from ...core.exceptions import NotFoundError, AlreadyExistsError, AuthorizationError
-from ...core.security import verify_password, get_password_hash
+from ...core.exceptions import NotFoundError, ValidationError, AuthorizationError
 from ...utils.permissions import PermissionChecker
 from ..deps import (
-    UserRepo, RoleRepo, SubdivisionRepo,
-    CurrentUser, CSRFProtection, PaginationParams,
-    require_roles
+    ContributionRepo, StudentRepo, GroupRepo,
+    CurrentUser, CSRFProtection, PaginationParams
 )
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/contributions", tags=["contributions"])
 
 
-@router.get("", response_model=PaginatedResponse[User])
-async def get_users(
+@router.get("", response_model=PaginatedResponse[Contribution])
+async def get_contributions(
     pagination: PaginationParams,
     current_user: CurrentUser,
-    repo: UserRepo,
-    subdivision_id: Optional[int] = Query(None, description="Фильтр по подразделению"),
-    search: Optional[str] = Query(None, description="Поиск по логину")
+    repo: ContributionRepo,
+    student_id: Optional[int] = Query(None, description="Фильтр по студенту"),
+    group_id: Optional[int] = Query(None, description="Фильтр по группе"),
+    year: Optional[int] = Query(None, description="Фильтр по году"),
+    semester: Optional[int] = Query(None, ge=1, le=2, description="Фильтр по семестру"),
+    paid_only: Optional[bool] = Query(None, description="Только оплаченные")
 ):
     """
-    Получить список пользователей.
+    Получить список взносов с фильтрацией.
     
-    Администраторы видят всех пользователей.
-    Остальные - только пользователей своего подразделения.
+    Фильтры:
+    - **student_id**: ID студента
+    - **group_id**: ID группы  
+    - **year**: год взноса
+    - **semester**: семестр (1 или 2)
+    - **paid_only**: только оплаченные взносы
+    """
+    # Формируем фильтры
+    filters = {}
+    if student_id:
+        filters['student_id'] = student_id
+    if year:
+        filters['year'] = year
+    if semester:
+        filters['semester'] = semester
+    if paid_only is not None:
+        if paid_only:
+            filters['payment_date_not_null'] = True
+        else:
+            filters['payment_date_null'] = True
+    
+    # Получаем данные с пагинацией
+    offset = (pagination.page - 1) * pagination.size
+    
+    if group_id:
+        items = await repo.get_by_group(
+            group_id=group_id,
+            year=year or date.today().year,
+            semester=semester
+        )
+        # Применяем пагинацию вручную
+        total = len(items)
+        items = items[offset:offset + pagination.size]
+    else:
+        # TODO: Реализовать общий поиск с фильтрами
+        items = []
+        total = 0
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=pagination.page,
+        size=pagination.size,
+        pages=(total + pagination.size - 1) // pagination.size
+    )
+
+
+@router.get("/summary", response_model=ContributionSummary)
+async def get_contributions_summary(
+    current_user: CurrentUser,
+    repo: ContributionRepo,
+    year: int = Query(..., description="Год для сводки"),
+    semester: int = Query(..., ge=1, le=2, description="Семестр"),
+    subdivision_id: Optional[int] = Query(None, description="Фильтр по подразделению")
+):
+    """
+    Получить сводку по взносам за период.
     """
     # Применяем ограничения по подразделению
     filter_subdivision_id = PermissionChecker.filter_by_subdivision(
         current_user, subdivision_id
     )
     
-    # Получаем пользователей
-    users = await repo.get_all_with_roles(filter_subdivision_id)
-    
-    # Фильтруем по поиску если нужно
-    if search:
-        users = [u for u in users if search.lower() in u.login.lower()]
-    
-    # Применяем пагинацию вручную
-    offset = (pagination.page - 1) * pagination.size
-    paginated_users = users[offset:offset + pagination.size]
-    
-    return PaginatedResponse(
-        items=paginated_users,
-        total=len(users),
-        page=pagination.page,
-        size=pagination.size,
-        pages=(len(users) + pagination.size - 1) // pagination.size
+    summary = await repo.get_summary(
+        year=year,
+        semester=semester,
+        subdivision_id=filter_subdivision_id
     )
+    
+    return summary
 
 
-@router.get("/me", response_model=User)
-async def get_current_user_info(current_user: CurrentUser):
-    """Получить информацию о текущем пользователе."""
-    return current_user
-
-
-@router.get("/{user_id}", response_model=User)
-async def get_user(
-    user_id: int,
+@router.get("/{contribution_id}", response_model=Contribution)
+async def get_contribution(
+    contribution_id: int,
     current_user: CurrentUser,
-    repo: UserRepo
+    repo: ContributionRepo
 ):
-    """
-    Получить пользователя по ID.
+    """Получить взнос по ID."""
+    contribution = await repo.get_with_details(contribution_id)
+    if not contribution:
+        raise NotFoundError(f"Взнос с ID {contribution_id} не найден")
     
-    Администраторы могут просматривать всех.
-    Остальные - только себя и пользователей своего подразделения.
-    """
-    user = await repo.get_with_roles(user_id)
-    if not user:
-        raise NotFoundError(f"Пользователь с ID {user_id} не найден")
-    
-    # Проверяем права доступа
-    if user_id != current_user.id:
-        if not PermissionChecker.has_permission(current_user, "view_all"):
-            if user.subdivision_id != current_user.subdivision_id:
-                raise AuthorizationError("Нет доступа к данному пользователю")
-    
-    return user
+    return contribution
 
 
-@router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    data: UserCreate,
+@router.post("", response_model=Contribution, status_code=status.HTTP_201_CREATED)
+async def create_contribution(
+    data: ContributionCreate,
     _: CSRFProtection,
-    repo: UserRepo,
-    role_repo: RoleRepo,
-    subdivision_repo: SubdivisionRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
-):
-    """
-    Создать нового пользователя.
-    
-    Требуется роль: Администратор
-    """
-    # Проверяем уникальность логина
-    existing = await repo.get_by_login(data.login)
-    if existing:
-        raise AlreadyExistsError(f"Пользователь с логином '{data.login}' уже существует")
-    
-    # Проверяем существование подразделения
-    if data.subdivision_id:
-        subdivision = await subdivision_repo.get_by_id(data.subdivision_id)
-        if not subdivision:
-            raise NotFoundError(f"Подразделение с ID {data.subdivision_id} не найдено")
-    
-    # Проверяем существование ролей
-    for role_id in data.role_ids:
-        if not await role_repo.exists(role_id):
-            raise NotFoundError(f"Роль с ID {role_id} не найдена")
-    
-    try:
-        user = await repo.create(data)
-        logger.info(f"User {current_user.id} created user {user.id}")
-        return user
-    except Exception as e:
-        logger.error(f"Error creating user: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при создании пользователя"
-        )
-
-
-@router.put("/{user_id}", response_model=User)
-async def update_user(
-    user_id: int,
-    data: UserUpdate,
-    _: CSRFProtection,
-    repo: UserRepo,
-    role_repo: RoleRepo,
-    subdivision_repo: SubdivisionRepo,
+    repo: ContributionRepo,
+    student_repo: StudentRepo,
+    group_repo: GroupRepo,
     current_user: CurrentUser
 ):
     """
-    Обновить пользователя.
+    Создать новый взнос.
     
-    Администраторы могут редактировать всех.
-    Пользователи могут менять только свой пароль.
+    Требуется роль: Администратор, Модератор или Оператор
     """
-    # Получаем существующего пользователя
-    existing = await repo.get_with_roles(user_id)
-    if not existing:
-        raise NotFoundError(f"Пользователь с ID {user_id} не найден")
+    # Проверяем существование студента
+    student = await student_repo.get_by_id(data.student_id)
+    if not student:
+        raise NotFoundError(f"Студент с ID {data.student_id} не найден")
     
-    # Проверяем права
-    is_admin = PermissionChecker.has_permission(current_user, "manage_users")
-    is_self = user_id == current_user.id
-    
-    if not is_admin and not is_self:
-        raise AuthorizationError("Недостаточно прав для редактирования пользователя")
-    
-    # Если не админ, может менять только пароль
-    if not is_admin:
-        if data.subdivision_id is not None or data.role_ids is not None:
-            raise AuthorizationError("Вы можете изменить только свой пароль")
-    
-    # Проверяем новое подразделение
-    if data.subdivision_id and data.subdivision_id != existing.subdivision_id:
-        subdivision = await subdivision_repo.get_by_id(data.subdivision_id)
-        if not subdivision:
-            raise NotFoundError(f"Подразделение с ID {data.subdivision_id} не найдено")
-    
-    # Проверяем новые роли
-    if data.role_ids is not None:
-        for role_id in data.role_ids:
-            if not await role_repo.exists(role_id):
-                raise NotFoundError(f"Роль с ID {role_id} не найдена")
+    # Проверяем права через группу студента
+    group = await group_repo.get_by_id(student.group_id)
+    if not PermissionChecker.can_manage_contributions(current_user, group.subdivision_id):
+        raise AuthorizationError("Недостаточно прав для создания взноса")
     
     try:
-        user = await repo.update(user_id, data)
-        logger.info(f"User {current_user.id} updated user {user_id}")
-        return user
+        contribution = await repo.create(data)
+        logger.info(f"User {current_user.id} created contribution {contribution.id}")
+        return contribution
     except Exception as e:
-        logger.error(f"Error updating user: {e}")
+        logger.error(f"Error creating contribution: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при обновлении пользователя"
+            detail="Ошибка при создании взноса"
         )
 
 
-@router.post("/change-password", response_model=SuccessResponse)
-async def change_password(
-    data: ChangePasswordRequest,
+@router.put("/{contribution_id}", response_model=Contribution)
+async def update_contribution(
+    contribution_id: int,
+    data: ContributionUpdate,
     _: CSRFProtection,
-    repo: UserRepo,
+    repo: ContributionRepo,
     current_user: CurrentUser
 ):
-    """Изменить свой пароль."""
-    # Получаем пользователя с хешем пароля
-    user_in_db = await repo.get_by_login(current_user.login)
+    """
+    Обновить взнос.
     
-    # Проверяем старый пароль
-    if not verify_password(data.old_password, user_in_db.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Неверный старый пароль"
-        )
+    Требуется роль: Администратор, Модератор или Оператор
+    """
+    # Получаем существующий взнос
+    existing = await repo.get_with_details(contribution_id)
+    if not existing:
+        raise NotFoundError(f"Взнос с ID {contribution_id} не найден")
     
-    # Обновляем пароль
-    update_data = UserUpdate(password=data.new_password)
+    # TODO: Добавить проверку прав через студента
     
     try:
-        await repo.update(current_user.id, update_data)
-        logger.info(f"User {current_user.id} changed password")
-        return SuccessResponse(message="Пароль успешно изменен")
+        contribution = await repo.update(contribution_id, data)
+        logger.info(f"User {current_user.id} updated contribution {contribution_id}")
+        return contribution
     except Exception as e:
-        logger.error(f"Error changing password: {e}")
+        logger.error(f"Error updating contribution: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при изменении пароля"
+            detail="Ошибка при обновлении взноса"
         )
 
 
-@router.delete("/{user_id}", response_model=SuccessResponse)
-async def delete_user(
-    user_id: int,
+@router.delete("/{contribution_id}", response_model=SuccessResponse)
+async def delete_contribution(
+    contribution_id: int,
     _: CSRFProtection,
-    repo: UserRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    repo: ContributionRepo,
+    current_user: CurrentUser
 ):
     """
-    Удалить пользователя.
+    Удалить взнос.
     
-    Требуется роль: Администратор
+    Требуется роль: Администратор или Модератор
     """
-    # Проверяем существование
-    existing = await repo.get_by_id(user_id)
-    if not existing:
-        raise NotFoundError(f"Пользователь с ID {user_id} не найден")
+    # Получаем взнос
+    contribution = await repo.get_with_details(contribution_id)
+    if not contribution:
+        raise NotFoundError(f"Взнос с ID {contribution_id} не найден")
     
-    # Нельзя удалить самого себя
-    if user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нельзя удалить самого себя"
-        )
+    # Проверяем права на удаление
+    if not PermissionChecker.has_permission(current_user, "delete_all"):
+        raise AuthorizationError("Недостаточно прав для удаления взноса")
     
     try:
-        success = await repo.delete(user_id)
+        success = await repo.delete(contribution_id)
         if success:
-            logger.info(f"User {current_user.id} deleted user {user_id}")
-            return SuccessResponse(message="Пользователь успешно удален")
+            logger.info(f"User {current_user.id} deleted contribution {contribution_id}")
+            return SuccessResponse(message="Взнос успешно удален")
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Ошибка при удалении пользователя"
+                detail="Ошибка при удалении взноса"
             )
     except Exception as e:
-        logger.error(f"Error deleting user: {e}")
+        logger.error(f"Error deleting contribution: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при удалении пользователя"
+            detail="Ошибка при удалении взноса"
         )
 
 
-@router.post("/{user_id}/roles/{role_id}", response_model=SuccessResponse)
-async def add_user_role(
-    user_id: int,
-    role_id: int,
+@router.post("/mark-paid/{student_id}", response_model=Contribution)
+async def mark_contribution_as_paid(
+    student_id: int,
     _: CSRFProtection,
-    repo: UserRepo,
-    role_repo: RoleRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    repo: ContributionRepo,
+    current_user: CurrentUser,
+    year: int = Query(..., description="Год взноса"),
+    semester: int = Query(..., ge=1, le=2, description="Семестр"),
+    amount: Decimal = Query(..., description="Сумма взноса"),
+    payment_date: Optional[date] = Query(None, description="Дата платежа")
 ):
     """
-    Добавить роль пользователю.
-    
-    Требуется роль: Администратор
+    Отметить взнос как оплаченный.
     """
-    # Проверяем существование пользователя и роли
-    if not await repo.exists(user_id):
-        raise NotFoundError(f"Пользователь с ID {user_id} не найден")
-    
-    if not await role_repo.exists(role_id):
-        raise NotFoundError(f"Роль с ID {role_id} не найдена")
+    if not payment_date:
+        payment_date = date.today()
     
     try:
-        await repo.add_role(user_id, role_id)
-        logger.info(f"User {current_user.id} added role {role_id} to user {user_id}")
-        return SuccessResponse(message="Роль успешно добавлена")
-    except Exception as e:
-        logger.error(f"Error adding role: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при добавлении роли"
+        contribution = await repo.mark_as_paid(
+            student_id=student_id,
+            year=year,
+            semester=semester,
+            amount=amount,
+            payment_date=payment_date
         )
-
-
-@router.delete("/{user_id}/roles/{role_id}", response_model=SuccessResponse)
-async def remove_user_role(
-    user_id: int,
-    role_id: int,
-    _: CSRFProtection,
-    repo: UserRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
-):
-    """
-    Удалить роль у пользователя.
-    
-    Требуется роль: Администратор
-    """
-    try:
-        success = await repo.remove_role(user_id, role_id)
-        if success:
-            logger.info(f"User {current_user.id} removed role {role_id} from user {user_id}")
-            return SuccessResponse(message="Роль успешно удалена")
-        else:
-            return SuccessResponse(message="Роль не была назначена пользователю")
+        logger.info(f"User {current_user.id} marked contribution as paid for student {student_id}")
+        return contribution
     except Exception as e:
-        logger.error(f"Error removing role: {e}")
+        logger.error(f"Error marking contribution as paid: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при удалении роли"
+            detail="Ошибка при отметке взноса как оплаченного"
         )

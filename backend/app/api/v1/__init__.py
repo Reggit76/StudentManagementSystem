@@ -1,6 +1,7 @@
 # app/api/v1/__init__.py
 from fastapi import APIRouter
 
+from .auth import router as auth_router
 from .subdivisions import router as subdivisions_router
 from .roles import router as roles_router
 from .additional_statuses import router as additional_statuses_router
@@ -14,6 +15,7 @@ from .users import router as users_router
 api_router = APIRouter(prefix="/api/v1")
 
 # Подключаем все роутеры
+api_router.include_router(auth_router)
 api_router.include_router(subdivisions_router)
 api_router.include_router(roles_router)
 api_router.include_router(additional_statuses_router)
