@@ -10,7 +10,7 @@ class AdditionalStatusBase(BaseModel):
 
 
 class AdditionalStatus(BaseDBModel, AdditionalStatusBase):
-    students_count: int = 0
+    pass
 
 
 class AdditionalStatusCreate(BaseCreateModel, AdditionalStatusBase):

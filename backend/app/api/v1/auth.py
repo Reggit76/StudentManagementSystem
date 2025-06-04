@@ -20,8 +20,8 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    user_repo: UserRepo = Depends()
+    user_repo: UserRepo,
+    form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
     Авторизация пользователя.
@@ -35,7 +35,7 @@ async def login_for_access_token(
             raise AuthenticationError("Неверный логин или пароль")
         
         # Проверяем пароль
-        if not verify_password(form_data.password, user.password_hash):
+        if not verify_password(form_data.password, user.passwordhash):
             raise AuthenticationError("Неверный логин или пароль")
         
         # Создаем токен
@@ -46,7 +46,7 @@ async def login_for_access_token(
             "user_id": user.id,
             "login": user.login,
             "roles": user_roles,
-            "subdivision_id": user.subdivision_id
+            "subdivision_id": user.subdivisionid
         }
         
         access_token = create_access_token(

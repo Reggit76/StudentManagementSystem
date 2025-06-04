@@ -21,7 +21,7 @@ class PaginationParams(BaseModel):
 class SortParams(BaseModel):
     """Параметры сортировки"""
     field: str
-    order: str = Field(default="asc", regex="^(asc|desc)$")
+    order: str = Field(default="asc", pattern="^(asc|desc)$")
 
 
 class FilterParams(BaseModel):

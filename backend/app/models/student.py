@@ -1,14 +1,8 @@
 # backend/app/models/student.py
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 from pydantic import Field, field_validator, BaseModel
 from .base import BaseDBModel, BaseCreateModel, BaseUpdateModel
-
-if TYPE_CHECKING:
-    from .student_data import StudentData, StudentDataCreate, StudentDataUpdate
-    from .additional_status import AdditionalStatus
-    from .hostel_student import HostelStudent
-    from .contribution import Contribution
 
 
 class StudentBase(BaseModel):
@@ -33,10 +27,6 @@ class Student(BaseDBModel, StudentBase):
     group_name: Optional[str] = Field(None, description="Название группы")
     subdivision_name: Optional[str] = Field(None, description="Название подразделения")
     
-    # Связанные объекты (заполняются отдельно)
-    student_data: Optional['StudentData'] = Field(None, description="Дополнительные данные")
-    additional_statuses: List['AdditionalStatus'] = Field(default_factory=list, description="Дополнительные статусы")
-    
     @field_validator('fullname')
     @classmethod
     def validate_full_name(cls, v):
@@ -50,7 +40,6 @@ class Student(BaseDBModel, StudentBase):
 
 class StudentCreate(BaseCreateModel, StudentBase):
     """Модель для создания студента"""
-    student_data: Optional['StudentDataCreate'] = Field(None, description="Дополнительные данные студента")
     additional_status_ids: List[int] = Field(default_factory=list, description="ID дополнительных статусов")
 
 
@@ -61,7 +50,6 @@ class StudentUpdate(BaseUpdateModel):
     isactive: Optional[bool] = Field(None, description="Активный член профсоюза", alias="is_active")
     isbudget: Optional[bool] = Field(None, description="Бюджетник", alias="is_budget")
     year: Optional[int] = Field(None, ge=2000, le=2100, description="Год поступления")
-    student_data: Optional['StudentDataUpdate'] = Field(None, description="Дополнительные данные")
     additional_status_ids: Optional[List[int]] = Field(None, description="ID дополнительных статусов")
 
     @field_validator('fullname')
@@ -79,8 +67,7 @@ class StudentUpdate(BaseUpdateModel):
 
 class StudentWithDetails(Student):
     """Модель студента с полными деталями"""
-    hostel_info: Optional['HostelStudent'] = Field(None, description="Информация об общежитии")
-    contributions: List['Contribution'] = Field(default_factory=list, description="Взносы студента")
+    pass
 
 
 class BulkOperationResult(BaseModel):
