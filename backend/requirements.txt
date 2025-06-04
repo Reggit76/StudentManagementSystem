@@ -1,0 +1,37 @@
+# FastAPI и связанные компоненты
+fastapi==0.109.2
+uvicorn==0.27.1
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# Работа с PostgreSQL
+asyncpg==0.29.0
+
+# Безопасность
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+bcrypt==4.1.2
+cryptography==42.0.5
+
+# CSRF защита и сессии
+itsdangerous==2.1.2
+starlette[sessions]==0.36.3
+
+# Валидация и сериализация
+pydantic==2.6.1
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# Работа с датами
+python-dateutil==2.8.2
+
+# Логирование
+loguru==0.7.2
+
+# Тестирование
+pytest==8.0.1
+pytest-asyncio==0.23.3
+httpx==0.27.0
+
+# Дополнительные утилиты
+aiofiles==23.2.1
