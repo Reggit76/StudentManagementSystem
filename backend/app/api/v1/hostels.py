@@ -1,3 +1,5 @@
+# backend/app/api/v1/hostels.py
+
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query
 from loguru import logger
@@ -115,8 +117,8 @@ async def get_student_hostel(
     if not student:
         raise NotFoundError(f"Студент с ID {student_id} не найден")
     
-    group = await group_repo.get_by_id(student.group_id)
-    if not PermissionChecker.can_access_subdivision(current_user, group.subdivision_id):
+    group = await group_repo.get_by_id(student.groupid)
+    if not PermissionChecker.can_access_subdivision(current_user, group.subdivisionid):
         raise AuthorizationError("Нет доступа к данному студенту")
     
     hostel_info = await repo.get_by_student_id(student_id)
@@ -138,23 +140,23 @@ async def create_hostel_record(
     Требуется роль: Администратор, Модератор или Оператор (для своего подразделения)
     """
     # Проверяем существование студента
-    student = await student_repo.get_by_id(data.student_id)
+    student = await student_repo.get_by_id(data.studentid)
     if not student:
-        raise NotFoundError(f"Студент с ID {data.student_id} не найден")
+        raise NotFoundError(f"Студент с ID {data.studentid} не найден")
     
     # Проверяем права
-    group = await group_repo.get_by_id(student.group_id)
-    if not PermissionChecker.can_edit_student(current_user, group.subdivision_id):
+    group = await group_repo.get_by_id(student.groupid)
+    if not PermissionChecker.can_edit_student(current_user, group.subdivisionid):
         raise AuthorizationError("Недостаточно прав для редактирования данных студента")
     
     # Проверяем, нет ли уже записи для этого студента
-    existing = await repo.get_by_student_id(data.student_id)
+    existing = await repo.get_by_student_id(data.studentid)
     if existing:
         raise ValidationError(f"Студент уже проживает в общежитии {existing.hostel}, комната {existing.room}")
     
     try:
         hostel_record = await repo.create(data)
-        logger.info(f"User {current_user.id} added hostel record for student {data.student_id}")
+        logger.info(f"User {current_user.id} added hostel record for student {data.studentid}")
         return hostel_record
     except Exception as e:
         logger.error(f"Error creating hostel record: {e}")
@@ -185,9 +187,9 @@ async def update_hostel_record(
         raise NotFoundError(f"Запись с ID {hostel_id} не найдена")
     
     # Проверяем права через студента
-    student = await student_repo.get_by_id(existing.student_id)
-    group = await group_repo.get_by_id(student.group_id)
-    if not PermissionChecker.can_edit_student(current_user, group.subdivision_id):
+    student = await student_repo.get_by_id(existing.studentid)
+    group = await group_repo.get_by_id(student.groupid)
+    if not PermissionChecker.can_edit_student(current_user, group.subdivisionid):
         raise AuthorizationError("Недостаточно прав для редактирования данных студента")
     
     try:
@@ -222,11 +224,11 @@ async def delete_hostel_record(
         raise NotFoundError(f"Запись с ID {hostel_id} не найдена")
     
     # Проверяем права через студента
-    student = await student_repo.get_by_id(existing.student_id)
-    group = await group_repo.get_by_id(student.group_id)
+    student = await student_repo.get_by_id(existing.studentid)
+    group = await group_repo.get_by_id(student.groupid)
     if not (PermissionChecker.has_permission(current_user, "delete_all") or
             (PermissionChecker.has_permission(current_user, "delete_subdivision") and
-             current_user.subdivision_id == group.subdivision_id)):
+             current_user.subdivisionid == group.subdivisionid)):
         raise AuthorizationError("Недостаточно прав для удаления записи")
     
     try:

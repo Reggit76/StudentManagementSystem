@@ -1,3 +1,5 @@
+# backend/app/utils/permissions.py
+
 from typing import List, Optional
 from ..models.user import User
 from ..core.exceptions import AuthorizationError
@@ -64,7 +66,7 @@ class PermissionChecker:
             return True
         
         # Остальные - только к своему подразделению
-        return user.subdivision_id == subdivision_id
+        return user.subdivisionid == subdivision_id
     
     @classmethod
     def can_edit_student(cls, user: User, student_subdivision_id: int) -> bool:
@@ -73,7 +75,7 @@ class PermissionChecker:
             return True
         
         if cls.has_permission(user, "edit_students_subdivision"):
-            return user.subdivision_id == student_subdivision_id
+            return user.subdivisionid == student_subdivision_id
         
         return False
     
@@ -84,7 +86,7 @@ class PermissionChecker:
             return True
         
         if cls.has_permission(user, "manage_contributions_subdivision"):
-            return user.subdivision_id == subdivision_id
+            return user.subdivisionid == subdivision_id
         
         return False
     
@@ -96,4 +98,4 @@ class PermissionChecker:
             return query_subdivision_id
         
         # Остальные видят только свое подразделение
-        return user.subdivision_id
+        return user.subdivisionid

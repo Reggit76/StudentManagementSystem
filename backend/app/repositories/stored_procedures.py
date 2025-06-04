@@ -1,8 +1,12 @@
+# backend/app/repositories/stored_procedures.py
+
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import date
 from asyncpg import Connection
-from repositories import *
+from .student_repository import StudentRepository
+from .contribution_repository import ContributionRepository
+
 
 class StoredProceduresMixin:
     """Миксин для работы с хранимыми процедурами"""

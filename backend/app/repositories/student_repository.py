@@ -1,3 +1,5 @@
+# backend/app/repositories/student_repository.py
+
 from typing import Optional, List, Dict, Any
 from asyncpg import Connection
 from .base import BaseRepository
@@ -45,10 +47,10 @@ class StudentRepository(BaseRepository[Student]):
             """
             student_row = await connection.fetchrow(
                 student_query,
-                data.group_id,
-                data.full_name,
-                data.is_active,
-                data.is_budget,
+                data.groupid,
+                data.fullname,
+                data.isactive,
+                data.isbudget,
                 data_id,
                 data.year
             )
@@ -75,12 +77,12 @@ class StudentRepository(BaseRepository[Student]):
             
             # Обновляем данные студента, если переданы
             if data.student_data:
-                if current.data_id:
+                if current.dataid:
                     # Обновляем существующие данные
                     data_update = data.student_data.model_dump(exclude_unset=True)
                     if data_update:
                         set_parts = []
-                        values = [current.data_id]
+                        values = [current.dataid]
                         for i, (field, value) in enumerate(data_update.items()):
                             set_parts.append(f"{field} = ${i+2}")
                             values.append(value)
@@ -113,19 +115,10 @@ class StudentRepository(BaseRepository[Student]):
             # Обновляем основные данные студента
             update_data = data.model_dump(exclude_unset=True, exclude={'student_data', 'additional_status_ids'})
             if update_data:
-                # Маппинг имен полей
-                field_mapping = {
-                    'group_id': 'groupid',
-                    'full_name': 'fullname',
-                    'is_active': 'isactive',
-                    'is_budget': 'isbudget'
-                }
-                
                 set_parts = []
                 values = [id]
                 for i, (field, value) in enumerate(update_data.items()):
-                    db_field = field_mapping.get(field, field)
-                    set_parts.append(f"{db_field} = ${i+2}")
+                    set_parts.append(f"{field} = ${i+2}")
                     values.append(value)
                 
                 query = f"""
@@ -183,7 +176,9 @@ class StudentRepository(BaseRepository[Student]):
                     id=student_data['dataid'],
                     phone=student_data.pop('phone'),
                     email=student_data.pop('email'),
-                    birthday=student_data.pop('birthday')
+                    birthday=student_data.pop('birthday'),
+                    created_at=student_data['created_at'],
+                    updated_at=student_data['updated_at']
                 )
             else:
                 student_data.pop('phone', None)
@@ -294,7 +289,9 @@ class StudentRepository(BaseRepository[Student]):
                         id=student_data['dataid'],
                         phone=student_data.pop('phone'),
                         email=student_data.pop('email'),
-                        birthday=student_data.pop('birthday')
+                        birthday=student_data.pop('birthday'),
+                        created_at=student_data['created_at'],
+                        updated_at=student_data['updated_at']
                     )
                 else:
                     student_data.pop('phone', None)
@@ -319,3 +316,48 @@ class StudentRepository(BaseRepository[Student]):
         """
         rows = await conn.fetch(query, student_id)
         return [AdditionalStatus(**dict(row)) for row in rows]
+
+    async def count(self, filters: Optional[Dict[str, Any]] = None, conn: Optional[Connection] = None) -> int:
+        """Подсчитать количество студентов с учетом фильтров"""
+        query = """
+            SELECT COUNT(*) FROM students s
+            JOIN groups g ON g.id = s.groupid
+            WHERE 1=1
+        """
+        
+        params = []
+        param_count = 1
+        
+        if filters:
+            if 'group_id' in filters:
+                query += f" AND s.groupid = ${param_count}"
+                params.append(filters['group_id'])
+                param_count += 1
+            
+            if 'subdivision_id' in filters:
+                query += f" AND g.subdivisionid = ${param_count}"
+                params.append(filters['subdivision_id'])
+                param_count += 1
+            
+            if 'is_active' in filters:
+                query += f" AND s.isactive = ${param_count}"
+                params.append(filters['is_active'])
+                param_count += 1
+            
+            if 'is_budget' in filters:
+                query += f" AND s.isbudget = ${param_count}"
+                params.append(filters['is_budget'])
+                param_count += 1
+            
+            if 'year' in filters:
+                query += f" AND s.year = ${param_count}"
+                params.append(filters['year'])
+                param_count += 1
+            
+            if 'search' in filters:
+                query += f" AND s.fullname ILIKE ${param_count}"
+                params.append(f"%{filters['search']}%")
+                param_count += 1
+        
+        async with self._get_connection(conn) as connection:
+            return await connection.fetchval(query, *params)

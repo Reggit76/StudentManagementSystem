@@ -1,3 +1,5 @@
+# backend/app/repositories/user_repository.py
+
 from typing import Optional, List
 from asyncpg import Connection
 from .base import BaseRepository
@@ -32,7 +34,7 @@ class UserRepository(BaseRepository[User]):
                 user_query, 
                 data.login, 
                 password_hash, 
-                data.subdivision_id
+                data.subdivisionid
             )
             
             # Добавляем роли
@@ -57,17 +59,10 @@ class UserRepository(BaseRepository[User]):
                 if 'password' in update_data:
                     update_data['passwordhash'] = get_password_hash(update_data.pop('password'))
                 
-                # Маппинг имен полей
-                field_mapping = {
-                    'subdivision_id': 'subdivisionid',
-                    'passwordhash': 'passwordhash'
-                }
-                
                 set_parts = []
                 values = [id]
                 for i, (field, value) in enumerate(update_data.items()):
-                    db_field = field_mapping.get(field, field)
-                    set_parts.append(f"{db_field} = ${i+2}")
+                    set_parts.append(f"{field} = ${i+2}")
                     values.append(value)
                 
                 query = f"""
@@ -113,7 +108,6 @@ class UserRepository(BaseRepository[User]):
             
             user_data = dict(row)
             user_data['roles'] = roles
-            user_data['password_hash'] = user_data.pop('passwordhash')
             
             return UserInDB(**user_data)
     

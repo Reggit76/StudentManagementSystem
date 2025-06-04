@@ -1,9 +1,11 @@
+# backend/app/api/v1/students.py
+
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query, Body
 from loguru import logger
 
-from ...models.student import Student, StudentCreate, StudentUpdate, StudentWithDetails
-from ...models.common import PaginatedResponse, SuccessResponse, BulkOperationResult
+from ...models.student import Student, StudentCreate, StudentUpdate, StudentWithDetails, BulkOperationResult
+from ...models.common import PaginatedResponse, SuccessResponse
 from ...core.exceptions import NotFoundError, ValidationError, AuthorizationError
 from ...core.database import db
 from ...utils.permissions import PermissionChecker
@@ -97,8 +99,8 @@ async def get_student(
         raise NotFoundError(f"Студент с ID {student_id} не найден")
     
     # Проверяем доступ через группу
-    group = await group_repo.get_by_id(student.group_id)
-    if not PermissionChecker.can_access_subdivision(current_user, group.subdivision_id):
+    group = await group_repo.get_by_id(student.groupid)
+    if not PermissionChecker.can_access_subdivision(current_user, group.subdivisionid):
         raise AuthorizationError("Нет доступа к данному студенту")
     
     return student
@@ -117,8 +119,8 @@ async def get_student_full_details(
         raise NotFoundError(f"Студент с ID {student_id} не найден")
     
     # Проверяем доступ
-    group = await group_repo.get_by_id(student.group_id)
-    if not PermissionChecker.can_access_subdivision(current_user, group.subdivision_id):
+    group = await group_repo.get_by_id(student.groupid)
+    if not PermissionChecker.can_access_subdivision(current_user, group.subdivisionid):
         raise AuthorizationError("Нет доступа к данному студенту")
     
     return student
@@ -139,12 +141,12 @@ async def create_student(
     Требуется роль: Администратор, Модератор или Оператор (для своего подразделения)
     """
     # Проверяем существование группы
-    group = await group_repo.get_by_id(data.group_id)
+    group = await group_repo.get_by_id(data.groupid)
     if not group:
-        raise NotFoundError(f"Группа с ID {data.group_id} не найдена")
+        raise NotFoundError(f"Группа с ID {data.groupid} не найдена")
     
     # Проверяем права на создание в данном подразделении
-    if not PermissionChecker.can_edit_student(current_user, group.subdivision_id):
+    if not PermissionChecker.can_edit_student(current_user, group.subdivisionid):
         raise AuthorizationError("Недостаточно прав для создания студента")
     
     # Проверяем существование дополнительных статусов
@@ -185,16 +187,16 @@ async def update_student(
         raise NotFoundError(f"Студент с ID {student_id} не найден")
     
     # Проверяем права на редактирование
-    group = await group_repo.get_by_id(existing.group_id)
-    if not PermissionChecker.can_edit_student(current_user, group.subdivision_id):
+    group = await group_repo.get_by_id(existing.groupid)
+    if not PermissionChecker.can_edit_student(current_user, group.subdivisionid):
         raise AuthorizationError("Недостаточно прав для редактирования студента")
     
     # Если меняется группа, проверяем права на новую группу
-    if data.group_id and data.group_id != existing.group_id:
-        new_group = await group_repo.get_by_id(data.group_id)
+    if data.groupid and data.groupid != existing.groupid:
+        new_group = await group_repo.get_by_id(data.groupid)
         if not new_group:
-            raise NotFoundError(f"Группа с ID {data.group_id} не найдена")
-        if not PermissionChecker.can_edit_student(current_user, new_group.subdivision_id):
+            raise NotFoundError(f"Группа с ID {data.groupid} не найдена")
+        if not PermissionChecker.can_edit_student(current_user, new_group.subdivisionid):
             raise AuthorizationError("Недостаточно прав для перевода в указанную группу")
     
     try:
@@ -230,10 +232,10 @@ async def delete_student(
         raise NotFoundError(f"Студент с ID {student_id} не найден")
     
     # Проверяем права на удаление
-    group = await group_repo.get_by_id(student.group_id)
+    group = await group_repo.get_by_id(student.groupid)
     if not (PermissionChecker.has_permission(current_user, "delete_all") or
             (PermissionChecker.has_permission(current_user, "delete_subdivision") and
-             current_user.subdivision_id == group.subdivision_id)):
+             current_user.subdivisionid == group.subdivisionid)):
         raise AuthorizationError("Недостаточно прав для удаления студента")
     
     try:

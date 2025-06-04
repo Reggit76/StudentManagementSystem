@@ -11,7 +11,7 @@ from .contribution_repository import ContributionRepository
 __all__ = [
     'BaseRepository',
     'SubdivisionRepository',
-    'RoleRepository',
+    'RoleRepository', 
     'AdditionalStatusRepository',
     'GroupRepository',
     'UserRepository',

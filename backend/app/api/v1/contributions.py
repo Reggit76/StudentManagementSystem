@@ -1,3 +1,5 @@
+# backend/app/api/v1/contributions.py
+
 from typing import List, Optional
 from decimal import Decimal
 from datetime import date
@@ -133,13 +135,13 @@ async def create_contribution(
     Требуется роль: Администратор, Модератор или Оператор
     """
     # Проверяем существование студента
-    student = await student_repo.get_by_id(data.student_id)
+    student = await student_repo.get_by_id(data.studentid)
     if not student:
-        raise NotFoundError(f"Студент с ID {data.student_id} не найден")
+        raise NotFoundError(f"Студент с ID {data.studentid} не найден")
     
     # Проверяем права через группу студента
-    group = await group_repo.get_by_id(student.group_id)
-    if not PermissionChecker.can_manage_contributions(current_user, group.subdivision_id):
+    group = await group_repo.get_by_id(student.groupid)
+    if not PermissionChecker.can_manage_contributions(current_user, group.subdivisionid):
         raise AuthorizationError("Недостаточно прав для создания взноса")
     
     try:

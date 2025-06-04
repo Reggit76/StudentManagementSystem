@@ -1,3 +1,5 @@
+# backend/app/api/v1/users.py
+
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Query
 from loguru import logger
@@ -81,7 +83,7 @@ async def get_user(
     # Проверяем права доступа
     if user_id != current_user.id:
         if not PermissionChecker.has_permission(current_user, "view_all"):
-            if user.subdivision_id != current_user.subdivision_id:
+            if user.subdivisionid != current_user.subdivisionid:
                 raise AuthorizationError("Нет доступа к данному пользователю")
     
     return user
@@ -107,10 +109,10 @@ async def create_user(
         raise AlreadyExistsError(f"Пользователь с логином '{data.login}' уже существует")
     
     # Проверяем существование подразделения
-    if data.subdivision_id:
-        subdivision = await subdivision_repo.get_by_id(data.subdivision_id)
+    if data.subdivisionid:
+        subdivision = await subdivision_repo.get_by_id(data.subdivisionid)
         if not subdivision:
-            raise NotFoundError(f"Подразделение с ID {data.subdivision_id} не найдено")
+            raise NotFoundError(f"Подразделение с ID {data.subdivisionid} не найдено")
     
     # Проверяем существование ролей
     for role_id in data.role_ids:
@@ -159,14 +161,14 @@ async def update_user(
     
     # Если не админ, может менять только пароль
     if not is_admin:
-        if data.subdivision_id is not None or data.role_ids is not None:
+        if data.subdivisionid is not None or data.role_ids is not None:
             raise AuthorizationError("Вы можете изменить только свой пароль")
     
     # Проверяем новое подразделение
-    if data.subdivision_id and data.subdivision_id != existing.subdivision_id:
-        subdivision = await subdivision_repo.get_by_id(data.subdivision_id)
+    if data.subdivisionid and data.subdivisionid != existing.subdivisionid:
+        subdivision = await subdivision_repo.get_by_id(data.subdivisionid)
         if not subdivision:
-            raise NotFoundError(f"Подразделение с ID {data.subdivision_id} не найдено")
+            raise NotFoundError(f"Подразделение с ID {data.subdivisionid} не найдено")
     
     # Проверяем новые роли
     if data.role_ids is not None:
@@ -198,7 +200,7 @@ async def change_password(
     user_in_db = await repo.get_by_login(current_user.login)
     
     # Проверяем старый пароль
-    if not verify_password(data.old_password, user_in_db.password_hash):
+    if not verify_password(data.old_password, user_in_db.passwordhash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Неверный старый пароль"

@@ -1,3 +1,5 @@
+# backend/app/api/deps.py
+
 from typing import Optional, Annotated, List
 from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -184,7 +186,7 @@ async def check_subdivision_access(
         return current_user
     
     # Остальные пользователи имеют доступ только к своему подразделению
-    if current_user.subdivision_id != subdivision_id:
+    if current_user.subdivisionid != subdivision_id:
         raise AuthorizationError("Нет доступа к данному подразделению")
     
     return current_user

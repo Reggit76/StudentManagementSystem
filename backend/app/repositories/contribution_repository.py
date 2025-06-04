@@ -32,10 +32,10 @@ class ContributionRepository(BaseRepository[Contribution]):
         async with self._get_connection(conn) as connection:
             row = await connection.fetchrow(
                 query,
-                data.student_id,
+                data.studentid,
                 data.semester,
                 data.amount,
-                data.payment_date,
+                data.paymentdate,
                 data.year
             )
             return await self.get_with_details(row['id'], connection)

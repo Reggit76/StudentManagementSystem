@@ -1,3 +1,5 @@
+# backend/app/api/v1/groups.py
+
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 from loguru import logger
@@ -110,7 +112,7 @@ async def get_group(
         raise NotFoundError(f"Группа с ID {group_id} не найдена")
     
     # Проверяем доступ
-    if not PermissionChecker.can_access_subdivision(current_user, group.subdivision_id):
+    if not PermissionChecker.can_access_subdivision(current_user, group.subdivisionid):
         raise AuthorizationError("Нет доступа к данной группе")
     
     return group
@@ -128,7 +130,7 @@ async def get_group_stats(
         raise NotFoundError(f"Группа с ID {group_id} не найдена")
     
     # Проверяем доступ
-    if not PermissionChecker.can_access_subdivision(current_user, group.subdivision_id):
+    if not PermissionChecker.can_access_subdivision(current_user, group.subdivisionid):
         raise AuthorizationError("Нет доступа к данной группе")
     
     return group
@@ -150,13 +152,13 @@ async def create_group(
     # Проверяем права на создание в указанном подразделении
     if not (PermissionChecker.has_permission(current_user, "manage_groups") or
             (PermissionChecker.has_permission(current_user, "manage_groups_subdivision") and
-             current_user.subdivision_id == data.subdivision_id)):
+             current_user.subdivisionid == data.subdivisionid)):
         raise AuthorizationError("Недостаточно прав для создания группы")
     
     # Проверяем существование подразделения
-    subdivision = await subdivision_repo.get_by_id(data.subdivision_id)
+    subdivision = await subdivision_repo.get_by_id(data.subdivisionid)
     if not subdivision:
-        raise NotFoundError(f"Подразделение с ID {data.subdivision_id} не найдено")
+        raise NotFoundError(f"Подразделение с ID {data.subdivisionid} не найдено")
     
     # Проверяем уникальность имени
     existing = await repo.get_by_name(data.name)
@@ -196,7 +198,7 @@ async def update_group(
     # Проверяем права на редактирование
     if not (PermissionChecker.has_permission(current_user, "edit_all") or
             (PermissionChecker.has_permission(current_user, "edit_subdivision") and
-             current_user.subdivision_id == existing.subdivision_id)):
+             current_user.subdivisionid == existing.subdivisionid)):
         raise AuthorizationError("Недостаточно прав для редактирования группы")
     
     # Проверяем уникальность нового имени
@@ -239,7 +241,7 @@ async def delete_group(
     # Проверяем права на удаление
     if not (PermissionChecker.has_permission(current_user, "delete_all") or
             (PermissionChecker.has_permission(current_user, "delete_subdivision") and
-             current_user.subdivision_id == group.subdivision_id)):
+             current_user.subdivisionid == group.subdivisionid)):
         raise AuthorizationError("Недостаточно прав для удаления группы")
     
     # Проверяем наличие студентов
