@@ -10,6 +10,7 @@ from .core.database import db
 from .core.exceptions import AppException
 from .core.migrations import migration_manager
 from .api.v1 import api_router
+from .middleware.security import SecurityHeadersMiddleware
 
 
 # Настройка логирования
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_methods=settings.CORS_METHODS,
     allow_headers=settings.CORS_HEADERS,
 )
+
+# Добавляем middleware для безопасности
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # Обработчики исключений

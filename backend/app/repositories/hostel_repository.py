@@ -26,7 +26,7 @@ class HostelRepository(BaseRepository[HostelStudent]):
         async with self._get_connection(conn) as connection:
             row = await connection.fetchrow(
                 query,
-                data.student_id,
+                data.studentid,
                 data.hostel,
                 data.room,
                 data.comment
