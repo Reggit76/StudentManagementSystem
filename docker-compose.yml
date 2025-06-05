@@ -59,6 +59,8 @@ services:
       - FIRST_SUPERUSER_USERNAME=admin
       - DEBUG=true
       - LOG_LEVEL=INFO
+      - AUTO_MIGRATE=true
+      - MIGRATIONS_DIR=../migrations  # Путь к папке migrations относительно backend
     depends_on:
       db:
         condition: service_healthy

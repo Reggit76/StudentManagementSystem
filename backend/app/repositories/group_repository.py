@@ -42,10 +42,16 @@ class GroupRepository(BaseRepository[Group]):
         if not update_data:
             return await self.get_by_id(id, conn)
         
+        # Маппинг полей для корректного обновления
+        field_mapping = {
+            'subdivision_id': 'subdivisionid'
+        }
+        
         set_parts = []
         values = [id]
         for i, (field, value) in enumerate(update_data.items()):
-            set_parts.append(f"{field} = ${i+2}")
+            db_field = field_mapping.get(field, field)
+            set_parts.append(f"{db_field} = ${i+2}")
             values.append(value)
         
         query = f"""
@@ -69,10 +75,21 @@ class GroupRepository(BaseRepository[Group]):
     async def get_by_name(self, name: str, conn: Optional[Connection] = None) -> Optional[Group]:
         """Получить группу по имени"""
         query = """
-            SELECT g.*, s.name as subdivision_name
+            SELECT 
+                g.*,
+                s.name as subdivision_name,
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM groups g
             LEFT JOIN subdivisions s ON s.id = g.subdivisionid
+            LEFT JOIN students st ON st.groupid = g.id
             WHERE g.name = $1
+            GROUP BY g.id, s.id, s.name
         """
         
         async with self._get_connection(conn) as connection:
@@ -92,8 +109,13 @@ class GroupRepository(BaseRepository[Group]):
             SELECT 
                 g.*,
                 s.name as subdivision_name,
-                COUNT(st.id) as students_count,
-                COUNT(st.id) FILTER (WHERE st.isactive = true) as active_students_count
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM groups g
             LEFT JOIN subdivisions s ON s.id = g.subdivisionid
             LEFT JOIN students st ON st.groupid = g.id
@@ -109,7 +131,7 @@ class GroupRepository(BaseRepository[Group]):
             param_count += 1
         
         query = base_query + f"""
-            GROUP BY g.id, s.name
+            GROUP BY g.id, s.id, s.name
             ORDER BY g.name
             LIMIT ${param_count} OFFSET ${param_count + 1}
         """
@@ -125,14 +147,19 @@ class GroupRepository(BaseRepository[Group]):
             SELECT 
                 g.*,
                 s.name as subdivision_name,
-                COUNT(st.id) as students_count,
-                COUNT(st.id) FILTER (WHERE st.isactive = true) as active_students_count,
-                COUNT(st.id) FILTER (WHERE st.isbudget = true) as budget_students_count
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isbudget = true) as budget_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM groups g
             LEFT JOIN subdivisions s ON s.id = g.subdivisionid
             LEFT JOIN students st ON st.groupid = g.id
             WHERE g.id = $1
-            GROUP BY g.id, s.name
+            GROUP BY g.id, s.id, s.name
         """
         
         async with self._get_connection(conn) as connection:
@@ -145,44 +172,81 @@ class GroupRepository(BaseRepository[Group]):
             SELECT 
                 g.*,
                 s.name as subdivision_name,
-                COUNT(st.id) as students_count,
-                COUNT(st.id) FILTER (WHERE st.isactive = true) as active_students_count,
-                COUNT(st.id) FILTER (WHERE st.isbudget = true) as budget_students_count
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isbudget = true) as budget_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM groups g
             LEFT JOIN subdivisions s ON s.id = g.subdivisionid
             LEFT JOIN students st ON st.groupid = g.id
         """
         
         if year:
-            query = base_query + " WHERE g.year = $1 GROUP BY g.id, s.name ORDER BY g.name"
+            query = base_query + " WHERE g.year = $1 GROUP BY g.id, s.id, s.name ORDER BY g.name"
             params = [year]
         else:
-            query = base_query + " GROUP BY g.id, s.name ORDER BY g.name"
+            query = base_query + " GROUP BY g.id, s.id, s.name ORDER BY g.name"
             params = []
         
         async with self._get_connection(conn) as connection:
             rows = await connection.fetch(query, *params)
             return [GroupWithStats(**dict(row)) for row in rows]
     
-    # Обновим метод _get_group_with_subdivision
+    async def get_all(
+        self, 
+        limit: int = 100, 
+        offset: int = 0,
+        order_by: str = "name",
+        order_desc: bool = False,
+        conn: Optional[Connection] = None
+    ) -> List[Group]:
+        """Получить все записи с пагинацией и статистикой"""
+        order = "DESC" if order_desc else "ASC"
+        query = f"""
+            SELECT 
+                g.*,
+                s.name as subdivision_name,
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
+            FROM groups g
+            LEFT JOIN subdivisions s ON s.id = g.subdivisionid
+            LEFT JOIN students st ON st.groupid = g.id
+            GROUP BY g.id, s.id, s.name
+            ORDER BY g.{order_by} {order}
+            LIMIT $1 OFFSET $2
+        """
+        
+        async with self._get_connection(conn) as connection:
+            rows = await connection.fetch(query, limit, offset)
+            return [Group(**dict(row)) for row in rows]
+    
     async def _get_group_with_subdivision(self, id: int, conn: Connection) -> Optional[Group]:
         """Внутренний метод для получения группы с информацией о подразделении"""
         query = """
             SELECT 
                 g.*,
                 s.name as subdivision_name,
-                COUNT(st.id) as students_count,
-                COUNT(st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
                 CASE 
-                    WHEN COUNT(st.id) > 0 
-                    THEN ROUND((COUNT(st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(st.id), 1)
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
                     ELSE 0 
                 END as union_percentage
             FROM groups g
             LEFT JOIN subdivisions s ON s.id = g.subdivisionid
             LEFT JOIN students st ON st.groupid = g.id
             WHERE g.id = $1
-            GROUP BY g.id, s.name
+            GROUP BY g.id, s.id, s.name
         """
         
         row = await conn.fetchrow(query, id)
@@ -208,3 +272,59 @@ class GroupRepository(BaseRepository[Group]):
         
         async with self._get_connection(conn) as connection:
             return await connection.fetchval(query, *params)
+
+    async def search(
+        self, 
+        filters: Dict[str, Any], 
+        limit: int = 100, 
+        offset: int = 0,
+        conn: Optional[Connection] = None
+    ) -> List[Group]:
+        """Поиск групп по фильтрам"""
+        query = """
+            SELECT 
+                g.*,
+                s.name as subdivision_name,
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
+            FROM groups g
+            LEFT JOIN subdivisions s ON s.id = g.subdivisionid
+            LEFT JOIN students st ON st.groupid = g.id
+            WHERE 1=1
+        """
+        
+        params = []
+        param_count = 1
+        
+        # Добавляем фильтры
+        if 'subdivision_id' in filters:
+            query += f" AND g.subdivisionid = ${param_count}"
+            params.append(filters['subdivision_id'])
+            param_count += 1
+        
+        if 'year' in filters:
+            query += f" AND g.year = ${param_count}"
+            params.append(filters['year'])
+            param_count += 1
+        
+        if 'search' in filters:
+            query += f" AND g.name ILIKE ${param_count}"
+            params.append(f"%{filters['search']}%")
+            param_count += 1
+        
+        # Добавляем группировку, сортировку и пагинацию
+        query += f"""
+            GROUP BY g.id, s.id, s.name
+            ORDER BY g.name 
+            LIMIT ${param_count} OFFSET ${param_count + 1}
+        """
+        params.extend([limit, offset])
+        
+        async with self._get_connection(conn) as connection:
+            rows = await connection.fetch(query, *params)
+            return [Group(**dict(row)) for row in rows]

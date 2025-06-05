@@ -10,6 +10,7 @@ from .students import router as students_router
 from .contributions import router as contributions_router
 from .hostels import router as hostels_router
 from .users import router as users_router
+from .audit_logs import router as audit_logs_router
 
 # Создаем главный роутер для версии API v1
 api_router = APIRouter(prefix="/api/v1")
@@ -24,6 +25,7 @@ api_router.include_router(students_router)
 api_router.include_router(contributions_router)
 api_router.include_router(hostels_router)
 api_router.include_router(users_router)
+api_router.include_router(audit_logs_router)
 
 # Экспортируем для использования в main.py
 __all__ = ["api_router"]

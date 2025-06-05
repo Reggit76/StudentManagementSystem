@@ -1,15 +1,17 @@
 # backend/app/api/v1/groups.py
 
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, status, Query, Depends
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, status, Query, Depends, Request
 from loguru import logger
 
 from ...models.group import Group, GroupCreate, GroupUpdate, GroupWithStats
+from ...models.student import Student
 from ...models.common import PaginatedResponse, SuccessResponse
 from ...core.exceptions import NotFoundError, AlreadyExistsError, AuthorizationError
 from ...utils.permissions import PermissionChecker
+from ...services.audit_service import AuditService
 from ..deps import (
-    GroupRepo, SubdivisionRepo, CurrentUser, CSRFProtection, 
+    GroupRepo, SubdivisionRepo, StudentRepo, CurrentUser, CSRFProtection, 
     PaginationParams, require_roles
 )
 
@@ -33,25 +35,20 @@ async def get_groups_list(
             current_user, subdivision_id
         )
         
-        # Получаем группы
+        # Формируем фильтры
+        filters = {}
         if filter_subdivision_id:
-            items = await repo.get_by_subdivision(
-                filter_subdivision_id, 
-                year,
-                limit=1000,
-                offset=0
-            )
-        else:
-            items = await repo.get_all(
-                limit=1000,
-                offset=0,
-                order_by="name",
-                order_desc=False
-            )
-        
-        # Фильтруем по поиску если нужно
+            filters['subdivision_id'] = filter_subdivision_id
+        if year:
+            filters['year'] = year
         if search:
-            items = [item for item in items if search.lower() in item.name.lower()]
+            filters['search'] = search
+        
+        # Получаем группы
+        if filters:
+            items = await repo.search(filters, limit=1000, offset=0)
+        else:
+            items = await repo.get_all(limit=1000, offset=0, order_by="name")
         
         return items
         
@@ -81,25 +78,23 @@ async def get_groups(
         current_user, subdivision_id
     )
     
-    # Подсчитываем общее количество
+    # Формируем фильтры
     filters = {}
     if filter_subdivision_id:
         filters['subdivision_id'] = filter_subdivision_id
     if year:
         filters['year'] = year
+    if search:
+        filters['search'] = search
     
+    # Подсчитываем общее количество
     total = await repo.count(filters)
     
     # Получаем данные
     offset = (pagination.page - 1) * pagination.size
     
-    if filter_subdivision_id:
-        items = await repo.get_by_subdivision(
-            filter_subdivision_id, 
-            year,
-            limit=pagination.size,
-            offset=offset
-        )
+    if filters:
+        items = await repo.search(filters, limit=pagination.size, offset=offset)
     else:
         items = await repo.get_all(
             limit=pagination.size,
@@ -107,70 +102,6 @@ async def get_groups(
             order_by=pagination.sort_by or "name",
             order_desc=(pagination.sort_order == "desc")
         )
-    
-    # Фильтруем по поиску если нужно
-    if search:
-        items = [item for item in items if search.lower() in item.name.lower()]
-    
-    return PaginatedResponse(
-        items=items,
-        total=total,
-        page=pagination.page,
-        size=pagination.size,
-        pages=(total + pagination.size - 1) // pagination.size
-    )
-
-@router.get("", response_model=PaginatedResponse[Group])
-async def get_groups(
-    pagination: PaginationParams,
-    current_user: CurrentUser,
-    repo: GroupRepo,
-    subdivision_id: Optional[int] = Query(None, description="Фильтр по подразделению"),
-    year: Optional[int] = Query(None, description="Фильтр по году"),
-    search: Optional[str] = Query(None, description="Поиск по названию")
-):
-    """
-    Получить список групп с пагинацией.
-    
-    - **subdivision_id**: фильтр по подразделению (для не-админов автоматически применяется их подразделение)
-    - **year**: фильтр по году
-    - **search**: поиск по названию
-    """
-    # Применяем ограничения по подразделению
-    filter_subdivision_id = PermissionChecker.filter_by_subdivision(
-        current_user, subdivision_id
-    )
-    
-    # Подсчитываем общее количество
-    filters = {}
-    if filter_subdivision_id:
-        filters['subdivision_id'] = filter_subdivision_id
-    if year:
-        filters['year'] = year
-    
-    total = await repo.count(filters)
-    
-    # Получаем данные
-    offset = (pagination.page - 1) * pagination.size
-    
-    if filter_subdivision_id:
-        items = await repo.get_by_subdivision(
-            filter_subdivision_id, 
-            year,
-            limit=pagination.size,
-            offset=offset
-        )
-    else:
-        items = await repo.get_all(
-            limit=pagination.size,
-            offset=offset,
-            order_by=pagination.sort_by or "name",
-            order_desc=(pagination.sort_order == "desc")
-        )
-    
-    # Фильтруем по поиску если нужно
-    if search:
-        items = [item for item in items if search.lower() in item.name.lower()]
     
     return PaginatedResponse(
         items=items,
@@ -199,7 +130,7 @@ async def get_groups_with_stats(
     
     # Фильтруем по подразделению если не админ
     if not PermissionChecker.has_permission(current_user, "view_all"):
-        groups = [g for g in groups if g.subdivision_name == current_user.subdivision_name]
+        groups = [g for g in groups if g.subdivisionid == current_user.subdivisionid]
     
     return groups
 
@@ -240,9 +171,51 @@ async def get_group_stats(
     return group
 
 
+@router.get("/{group_id}/students", response_model=List[Student])
+async def get_group_students(
+    group_id: int,
+    current_user: CurrentUser,
+    repo: GroupRepo,
+    student_repo: StudentRepo
+):
+    """Получить список студентов группы"""
+    # Проверяем существование группы
+    group = await repo.get_by_id(group_id)
+    if not group:
+        raise NotFoundError(f"Группа с ID {group_id} не найдена")
+    
+    # Проверяем доступ
+    if not PermissionChecker.can_access_subdivision(current_user, group.subdivisionid):
+        raise AuthorizationError("Нет доступа к данной группе")
+    
+    try:
+        # Получаем студентов
+        filters = {"group_id": group_id}
+        students = await student_repo.search(filters, limit=1000)
+        
+        # Логируем просмотр
+        await AuditService.log_action(
+            user_id=current_user.id,
+            action="VIEW",
+            table_name="students",
+            record_id=None,
+            new_data={"group_id": group_id, "action": "view_group_students"}
+        )
+        
+        return students
+        
+    except Exception as e:
+        logger.error(f"Error getting group students: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при получении студентов группы"
+        )
+
+
 @router.post("", response_model=Group, status_code=status.HTTP_201_CREATED)
 async def create_group(
     data: GroupCreate,
+    request: Request,
     _: CSRFProtection,
     repo: GroupRepo,
     subdivision_repo: SubdivisionRepo,
@@ -271,6 +244,16 @@ async def create_group(
     
     try:
         group = await repo.create(data)
+        
+        # Логируем создание
+        await AuditService.log_create(
+            user_id=current_user.id,
+            table_name="groups",
+            record_id=group.id,
+            data=group.model_dump(),
+            request=request
+        )
+        
         logger.info(f"User {current_user.id} created group {group.id}")
         return group
     except Exception as e:
@@ -285,6 +268,7 @@ async def create_group(
 async def update_group(
     group_id: int,
     data: GroupUpdate,
+    request: Request,
     _: CSRFProtection,
     repo: GroupRepo,
     current_user: CurrentUser
@@ -312,7 +296,21 @@ async def update_group(
             raise AlreadyExistsError(f"Группа с названием '{data.name}' уже существует")
     
     try:
+        # Сохраняем старые данные для лога
+        old_data = existing.model_dump()
+        
         group = await repo.update(group_id, data)
+        
+        # Логируем обновление
+        await AuditService.log_update(
+            user_id=current_user.id,
+            table_name="groups",
+            record_id=group_id,
+            old_data=old_data,
+            new_data=group.model_dump(),
+            request=request
+        )
+        
         logger.info(f"User {current_user.id} updated group {group_id}")
         return group
     except Exception as e:
@@ -326,6 +324,7 @@ async def update_group(
 @router.delete("/{group_id}", response_model=SuccessResponse)
 async def delete_group(
     group_id: int,
+    request: Request,
     _: CSRFProtection,
     repo: GroupRepo,
     current_user: CurrentUser
@@ -356,8 +355,20 @@ async def delete_group(
         )
     
     try:
+        # Сохраняем данные для лога
+        group_data = group.model_dump()
+        
         success = await repo.delete(group_id)
         if success:
+            # Логируем удаление
+            await AuditService.log_delete(
+                user_id=current_user.id,
+                table_name="groups",
+                record_id=group_id,
+                data=group_data,
+                request=request
+            )
+            
             logger.info(f"User {current_user.id} deleted group {group_id}")
             return SuccessResponse(message="Группа успешно удалена")
         else:

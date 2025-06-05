@@ -3,10 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 import sys
+import os
 
 from .core.config import settings
 from .core.database import db
 from .core.exceptions import AppException
+from .core.migrations import migration_manager
 from .api.v1 import api_router
 
 
@@ -90,8 +92,15 @@ async def startup_event():
     try:
         await db.connect()
         logger.info("Database connection established")
+        
+        # Запускаем миграции если включен AUTO_MIGRATE
+        if os.getenv("AUTO_MIGRATE", "false").lower() == "true":
+            logger.info("Running database migrations...")
+            await migration_manager.run_migrations()
+            logger.info("Database migrations completed")
+        
     except Exception as e:
-        logger.error(f"Failed to connect to database: {e}")
+        logger.error(f"Failed to initialize application: {e}")
         raise
 
 
@@ -145,4 +154,26 @@ async def health_check():
                 "database": "disconnected",
                 "error": str(e)
             }
+        )
+
+
+@app.get("/migrations/status")
+async def migrations_status():
+    """Проверка статуса миграций"""
+    try:
+        await migration_manager.ensure_migrations_table()
+        applied = await migration_manager.get_applied_migrations()
+        pending = await migration_manager.get_pending_migrations()
+        
+        return {
+            "applied_migrations": applied,
+            "pending_migrations": [p.name for p in pending],
+            "total_applied": len(applied),
+            "total_pending": len(pending)
+        }
+    except Exception as e:
+        logger.error(f"Failed to get migration status: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to get migration status"}
         )

@@ -20,12 +20,18 @@ import {
   TextField,
   CircularProgress,
   Chip,
+  Grid,
+  Card,
+  CardContent,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import GroupsIcon from '@mui/icons-material/Groups';
 import { subdivisionsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import SubdivisionGroupsModal from '../components/SubdivisionGroupsModal';
 
 const Divisions = () => {
   const { hasPermission } = useAuth();
@@ -33,6 +39,14 @@ const Divisions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
+  const [groupsDialog, setGroupsDialog] = useState({ open: false, subdivision: null });
+  const [totalStats, setTotalStats] = useState({
+    totalSubdivisions: 0,
+    totalGroups: 0,
+    totalStudents: 0,
+    totalActiveStudents: 0,
+    averageUnionPercentage: 0,
+  });
 
   useEffect(() => {
     fetchSubdivisions();
@@ -47,8 +61,10 @@ const Divisions = () => {
       
       if (subdivisionsData && subdivisionsData.items) {
         setSubdivisions(subdivisionsData.items);
+        calculateTotalStats(subdivisionsData.items);
       } else if (Array.isArray(subdivisionsData)) {
         setSubdivisions(subdivisionsData);
+        calculateTotalStats(subdivisionsData);
       } else {
         console.error('Unexpected subdivisions data format:', subdivisionsData);
         setSubdivisions([]);
@@ -63,6 +79,26 @@ const Divisions = () => {
     }
   };
 
+  const calculateTotalStats = (data) => {
+    const stats = data.reduce((acc, subdivision) => {
+      acc.totalGroups += subdivision.groups_count || 0;
+      acc.totalStudents += subdivision.students_count || 0;
+      acc.totalActiveStudents += subdivision.active_students_count || 0;
+      return acc;
+    }, {
+      totalSubdivisions: data.length,
+      totalGroups: 0,
+      totalStudents: 0,
+      totalActiveStudents: 0,
+    });
+
+    stats.averageUnionPercentage = stats.totalStudents > 0 
+      ? Math.round((stats.totalActiveStudents / stats.totalStudents) * 100)
+      : 0;
+
+    setTotalStats(stats);
+  };
+
   const handleAddSubdivision = () => {
     setDialog({
       open: true,
@@ -71,7 +107,8 @@ const Divisions = () => {
     });
   };
 
-  const handleEditSubdivision = (subdivision) => {
+  const handleEditSubdivision = (subdivision, event) => {
+    event.stopPropagation(); // Предотвращаем открытие модалки групп
     setDialog({
       open: true,
       type: 'edit',
@@ -79,24 +116,36 @@ const Divisions = () => {
     });
   };
 
-  const handleDeleteSubdivision = async (id) => {
-    if (window.confirm('Вы уверены, что хотите удалить это подразделение?')) {
+  const handleDeleteSubdivision = async (id, event) => {
+    event.stopPropagation(); // Предотвращаем открытие модалки групп
+    if (window.confirm('Вы уверены, что хотите удалить это подразделение? Это приведет к удалению всех связанных данных!')) {
       try {
         await subdivisionsAPI.delete(id);
         fetchSubdivisions();
       } catch (err) {
         console.error('Failed to delete subdivision:', err);
-        setError('Не удалось удалить подразделение');
+        setError('Не удалось удалить подразделение: ' + (err.response?.data?.detail || err.message));
       }
     }
   };
 
+  const handleRowClick = (subdivision) => {
+    setGroupsDialog({ open: true, subdivision });
+  };
+
   const handleDialogClose = () => {
     setDialog({ open: false, type: null, data: null });
+    setError('');
   };
 
   const handleDialogSave = async () => {
     try {
+      // Валидация
+      if (!dialog.data.name.trim()) {
+        setError('Название подразделения обязательно');
+        return;
+      }
+
       if (dialog.type === 'add') {
         await subdivisionsAPI.create(dialog.data);
       } else {
@@ -106,7 +155,7 @@ const Divisions = () => {
       fetchSubdivisions();
     } catch (err) {
       console.error('Failed to save subdivision:', err);
-      setError('Не удалось сохранить подразделение');
+      setError('Не удалось сохранить подразделение: ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -142,6 +191,61 @@ const Divisions = () => {
         )}
       </Box>
 
+      {/* Общая статистика */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Всего подразделений
+              </Typography>
+              <Typography variant="h5" component="div">
+                {totalStats.totalSubdivisions}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Всего групп
+              </Typography>
+              <Typography variant="h5" component="div">
+                {totalStats.totalGroups}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Всего студентов
+              </Typography>
+              <Typography variant="h5" component="div">
+                {totalStats.totalStudents}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                В профсоюзе
+              </Typography>
+              <Typography variant="h5" component="div">
+                {totalStats.totalActiveStudents}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                {totalStats.averageUnionPercentage}% от общего числа
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
@@ -175,8 +279,23 @@ const Divisions = () => {
               </TableRow>
             ) : (
               subdivisions.map((subdivision) => (
-                <TableRow key={subdivision.id}>
-                  <TableCell>{subdivision.name}</TableCell>
+                <TableRow 
+                  key={subdivision.id}
+                  hover
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    }
+                  }}
+                  onClick={() => handleRowClick(subdivision)}
+                >
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <GroupsIcon sx={{ mr: 1, color: 'primary.main' }} />
+                      {subdivision.name}
+                    </Box>
+                  </TableCell>
                   <TableCell>{subdivision.groups_count || 0}</TableCell>
                   <TableCell>{subdivision.students_count || 0}</TableCell>
                   <TableCell>{subdivision.active_students_count || 0}</TableCell>
@@ -188,17 +307,29 @@ const Divisions = () => {
                     />
                   </TableCell>
                   <TableCell align="right">
+                    <IconButton
+                      color="info"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowClick(subdivision);
+                      }}
+                      title="Посмотреть группы"
+                    >
+                      <VisibilityIcon />
+                    </IconButton>
                     {hasPermission('canManageSubdivision') && (
                       <>
                         <IconButton
                           color="primary"
-                          onClick={() => handleEditSubdivision(subdivision)}
+                          onClick={(e) => handleEditSubdivision(subdivision, e)}
+                          title="Редактировать"
                         >
                           <EditIcon />
                         </IconButton>
                         <IconButton
                           color="error"
-                          onClick={() => handleDeleteSubdivision(subdivision.id)}
+                          onClick={(e) => handleDeleteSubdivision(subdivision.id, e)}
+                          title="Удалить"
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -212,6 +343,7 @@ const Divisions = () => {
         </Table>
       </TableContainer>
 
+      {/* Диалог создания/редактирования подразделения */}
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
           {dialog.type === 'add' ? 'Добавить подразделение' : 'Редактировать подразделение'}
@@ -226,6 +358,7 @@ const Divisions = () => {
               onChange={handleInputChange}
               required
               sx={{ mb: 2 }}
+              helperText="Введите полное название подразделения"
             />
           </Box>
         </DialogContent>
@@ -236,6 +369,17 @@ const Divisions = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Модальное окно групп подразделения */}
+      <SubdivisionGroupsModal
+        open={groupsDialog.open}
+        subdivision={groupsDialog.subdivision}
+        onClose={() => {
+          setGroupsDialog({ open: false, subdivision: null });
+          // Обновляем данные после закрытия модального окна
+          fetchSubdivisions();
+        }}
+      />
     </Container>
   );
 };

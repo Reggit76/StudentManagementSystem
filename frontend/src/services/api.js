@@ -63,7 +63,7 @@ export const studentsAPI = {
     api.get(`/students/${id}/hostel`),
 };
 
-// Groups API
+// Обновляем Groups API
 export const groupsAPI = {
   getAll: (params) => {
     // Если нужна пагинация, используем основной эндпоинт
@@ -75,6 +75,8 @@ export const groupsAPI = {
   },
   getById: (id) =>
     api.get(`/groups/${id}`),
+  getStudents: (id) =>  // Добавляем новый метод
+    api.get(`/groups/${id}/students`),
   create: (data) =>
     api.post('/groups', data),
   update: (id, data) =>
@@ -136,6 +138,19 @@ export const rolesAPI = {
   delete: (id) =>
     api.delete(`/roles/${id}`),
 };
+
+// Добавляем в конец файла
+
+// Audit Logs API
+export const auditLogsAPI = {
+  getAll: (params) =>
+    api.get('/audit-logs', { params }),
+  getActions: () =>
+    api.get('/audit-logs/actions'),
+  getTables: () =>
+    api.get('/audit-logs/tables'),
+};
+
 
 // Для обратной совместимости
 export const divisionsAPI = subdivisionsAPI;

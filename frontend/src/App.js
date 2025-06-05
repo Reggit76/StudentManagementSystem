@@ -14,6 +14,7 @@ import Divisions from './pages/Divisions';
 import Hostels from './pages/Hostels';
 import Contributions from './pages/Contributions';
 import Users from './pages/Users';
+import AuditLogs from './pages/AuditLogs';
 
 const PrivateRoute = ({ children, requiredPermissions = [] }) => {
   const { user, loading, canAccessRoute } = useAuth();
@@ -97,6 +98,15 @@ const AppRoutes = () => {
         element={
           <PrivateRoute requiredPermissions={['canManageUsers']}>
             <Users />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/logs"
+        element={
+          <PrivateRoute requiredPermissions={['canViewAll']}>
+            <AuditLogs />
           </PrivateRoute>
         }
       />

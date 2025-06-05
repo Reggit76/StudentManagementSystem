@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str = "admin123"
     FIRST_SUPERUSER_USERNAME: str = "admin"
     
+    # Миграции
+    AUTO_MIGRATE: bool = False
+    MIGRATIONS_DIR: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

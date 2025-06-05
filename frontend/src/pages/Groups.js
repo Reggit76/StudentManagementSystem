@@ -24,15 +24,18 @@ import {
   MenuItem,
   CircularProgress,
   Grid,
+  Chip,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import InputAdornment from '@mui/material/InputAdornment';
-import { groupsAPI, subdivisionsAPI } from '../services/api';
+import { groupsAPI, subdivisionsAPI, studentsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import GroupStudentsModal from '../components/GroupStudentsModal';
 
 const Groups = () => {
   const { hasPermission } = useAuth();
@@ -41,6 +44,7 @@ const Groups = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
+  const [studentsDialog, setStudentsDialog] = useState({ open: false, group: null });
   
   // Фильтры
   const [filters, setFilters] = useState({
@@ -142,7 +146,8 @@ const Groups = () => {
     });
   };
 
-  const handleEditGroup = (group) => {
+  const handleEditGroup = (group, event) => {
+    event.stopPropagation(); // Предотвращаем открытие модалки студентов
     setDialog({
       open: true,
       type: 'edit',
@@ -153,24 +158,41 @@ const Groups = () => {
     });
   };
 
-  const handleDeleteGroup = async (id) => {
-    if (window.confirm('Are you sure you want to delete this group?')) {
+  const handleDeleteGroup = async (id, event) => {
+    event.stopPropagation(); // Предотвращаем открытие модалки студентов
+    if (window.confirm('Вы уверены, что хотите удалить эту группу? Это приведет к удалению всех студентов группы!')) {
       try {
         await groupsAPI.delete(id);
         fetchGroups();
       } catch (err) {
         console.error('Failed to delete group:', err);
-        setError('Failed to delete group');
+        setError('Не удалось удалить группу: ' + (err.response?.data?.detail || err.message));
       }
     }
   };
 
+  const handleRowClick = (group) => {
+    setStudentsDialog({ open: true, group });
+  };
+
   const handleDialogClose = () => {
     setDialog({ open: false, type: null, data: null });
+    setError('');
   };
 
   const handleDialogSave = async () => {
     try {
+      // Валидация
+      if (!dialog.data.name.trim()) {
+        setError('Название группы обязательно');
+        return;
+      }
+      
+      if (!dialog.data.subdivision_id) {
+        setError('Необходимо выбрать подразделение');
+        return;
+      }
+
       if (dialog.type === 'add') {
         await groupsAPI.create(dialog.data);
       } else {
@@ -180,7 +202,7 @@ const Groups = () => {
       fetchGroups();
     } catch (err) {
       console.error('Failed to save group:', err);
-      setError('Failed to save group');
+      setError('Не удалось сохранить группу: ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -192,11 +214,34 @@ const Groups = () => {
     }));
   };
 
+  const handleStudentSave = async (studentData) => {
+    try {
+      if (studentData.id) {
+        // Обновляем существующего студента
+        await studentsAPI.update(studentData.id, studentData);
+      } else {
+        // Создаем нового студента
+        await studentsAPI.create(studentData);
+      }
+      // Обновляем список групп чтобы обновить счетчики
+      fetchGroups();
+    } catch (err) {
+      console.error('Failed to save student:', err);
+      throw err; // Пробрасываем ошибку в StudentDetailModal
+    }
+  };
+
+  const getUnionPercentageColor = (percentage) => {
+    if (percentage >= 70) return 'success';
+    if (percentage >= 50) return 'warning';
+    return 'error';
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Groups
+          Группы
         </Typography>
         {hasPermission('canManageGroups') && (
           <Button
@@ -205,7 +250,7 @@ const Groups = () => {
             startIcon={<AddIcon />}
             onClick={handleAddGroup}
           >
-            Add Group
+            Добавить группу
           </Button>
         )}
       </Box>
@@ -217,7 +262,7 @@ const Groups = () => {
             <TextField
               fullWidth
               size="small"
-              label="Search groups"
+              label="Поиск групп"
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
               InputProps={{
@@ -231,13 +276,13 @@ const Groups = () => {
           </Grid>
           <Grid item xs={12} sm={3}>
             <FormControl fullWidth size="small">
-              <InputLabel>Subdivision</InputLabel>
+              <InputLabel>Подразделение</InputLabel>
               <Select
                 value={filters.subdivision_id}
-                label="Subdivision"
+                label="Подразделение"
                 onChange={(e) => handleFilterChange('subdivision_id', e.target.value)}
               >
-                <MenuItem value="">All Subdivisions</MenuItem>
+                <MenuItem value="">Все подразделения</MenuItem>
                 {subdivisions.map((subdivision) => (
                   <MenuItem key={subdivision.id} value={subdivision.id}>
                     {subdivision.name}
@@ -250,7 +295,7 @@ const Groups = () => {
             <TextField
               fullWidth
               size="small"
-              label="Year"
+              label="Год"
               type="number"
               value={filters.year}
               onChange={(e) => handleFilterChange('year', e.target.value)}
@@ -263,7 +308,7 @@ const Groups = () => {
               onClick={clearFilters}
               fullWidth
             >
-              Clear Filters
+              Очистить фильтры
             </Button>
           </Grid>
         </Grid>
@@ -279,29 +324,41 @@ const Groups = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Subdivision</TableCell>
-              <TableCell>Year</TableCell>
-              <TableCell>Students</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>Название</TableCell>
+              <TableCell>Подразделение</TableCell>
+              <TableCell>Год</TableCell>
+              <TableCell>Студентов</TableCell>
+              <TableCell>В профсоюзе</TableCell>
+              <TableCell>% в профсоюзе</TableCell>
+              <TableCell align="right">Действия</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={7} align="center">
                   <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : groups.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
-                  No groups found
+                <TableCell colSpan={7} align="center">
+                  Группы не найдены
                 </TableCell>
               </TableRow>
             ) : (
               groups.map((group) => (
-                <TableRow key={group.id}>
+                <TableRow 
+                  key={group.id}
+                  hover
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    }
+                  }}
+                  onClick={() => handleRowClick(group)}
+                >
                   <TableCell>{group.name}</TableCell>
                   <TableCell>
                     {group.subdivision_name || 
@@ -310,18 +367,38 @@ const Groups = () => {
                   </TableCell>
                   <TableCell>{group.year}</TableCell>
                   <TableCell>{group.students_count || 0}</TableCell>
+                  <TableCell>{group.active_students_count || 0}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={`${group.union_percentage || 0}%`}
+                      color={getUnionPercentageColor(group.union_percentage || 0)}
+                      size="small"
+                    />
+                  </TableCell>
                   <TableCell align="right">
+                    <IconButton
+                      color="info"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowClick(group);
+                      }}
+                      title="Посмотреть студентов"
+                    >
+                      <VisibilityIcon />
+                    </IconButton>
                     {hasPermission('canManageGroups') && (
                       <>
                         <IconButton
                           color="primary"
-                          onClick={() => handleEditGroup(group)}
+                          onClick={(e) => handleEditGroup(group, e)}
+                          title="Редактировать"
                         >
                           <EditIcon />
                         </IconButton>
                         <IconButton
                           color="error"
-                          onClick={() => handleDeleteGroup(group.id)}
+                          onClick={(e) => handleDeleteGroup(group.id, e)}
+                          title="Удалить"
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -335,15 +412,16 @@ const Groups = () => {
         </Table>
       </TableContainer>
 
+      {/* Диалог создания/редактирования группы */}
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {dialog.type === 'add' ? 'Add New Group' : 'Edit Group'}
+          {dialog.type === 'add' ? 'Добавить группу' : 'Редактировать группу'}
         </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             <TextField
               fullWidth
-              label="Name"
+              label="Название"
               name="name"
               value={dialog.data?.name || ''}
               onChange={handleInputChange}
@@ -351,12 +429,12 @@ const Groups = () => {
               sx={{ mb: 2 }}
             />
             <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Subdivision</InputLabel>
+              <InputLabel>Подразделение</InputLabel>
               <Select
                 name="subdivision_id"
                 value={dialog.data?.subdivision_id || ''}
                 onChange={handleInputChange}
-                label="Subdivision"
+                label="Подразделение"
                 required
               >
                 {subdivisions.map((subdivision) => (
@@ -368,7 +446,7 @@ const Groups = () => {
             </FormControl>
             <TextField
               fullWidth
-              label="Year"
+              label="Год"
               name="year"
               type="number"
               value={dialog.data?.year || new Date().getFullYear()}
@@ -378,12 +456,20 @@ const Groups = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button onClick={handleDialogClose}>Отмена</Button>
           <Button onClick={handleDialogSave} color="primary">
-            Save
+            Сохранить
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Модальное окно студентов группы */}
+      <GroupStudentsModal
+        open={studentsDialog.open}
+        group={studentsDialog.group}
+        onClose={() => setStudentsDialog({ open: false, group: null })}
+        onStudentSave={handleStudentSave}
+      />
     </Container>
   );
 };

@@ -20,7 +20,7 @@ from ..repositories.user_repository import UserRepository
 from ..repositories.student_repository import StudentRepository
 from ..repositories.hostel_repository import HostelRepository
 from ..repositories.contribution_repository import ContributionRepository
-
+from ..repositories.audit_log_repository import AuditLogRepository
 
 # Security схема для JWT
 security = HTTPBearer()
@@ -216,6 +216,12 @@ async def get_pagination_params(
         sort_order=sort_order
     )
 
+async def get_audit_log_repository(
+    pool: Pool = Depends(get_db_pool)
+) -> AuditLogRepository:
+    """Получить репозиторий логов аудита"""
+    return AuditLogRepository(pool)
+
 
 # Типы для аннотаций
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
@@ -232,3 +238,4 @@ UserRepo = Annotated[UserRepository, Depends(get_user_repository)]
 StudentRepo = Annotated[StudentRepository, Depends(get_student_repository)]
 HostelRepo = Annotated[HostelRepository, Depends(get_hostel_repository)]
 ContributionRepo = Annotated[ContributionRepository, Depends(get_contribution_repository)]
+AuditLogRepo = Annotated[AuditLogRepository, Depends(get_audit_log_repository)]
