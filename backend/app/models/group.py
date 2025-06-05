@@ -22,6 +22,7 @@ class Group(BaseDBModel, GroupBase):
     subdivision_name: Optional[str] = Field(None, description="Название подразделения")
     students_count: int = Field(default=0, description="Количество студентов")
     active_students_count: int = Field(default=0, description="Количество активных студентов")
+    union_percentage: float = Field(default=0.0, description="Процент в профсоюзе")
 
 
 class GroupCreate(BaseCreateModel, GroupBase):

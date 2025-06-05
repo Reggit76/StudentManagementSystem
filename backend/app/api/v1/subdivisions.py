@@ -14,6 +14,66 @@ from ..deps import (
 
 router = APIRouter(prefix="/subdivisions", tags=["subdivisions"])
 
+@router.get("/list", response_model=List[Subdivision])
+async def get_subdivisions_list(
+    current_user: CurrentUser,
+    repo: SubdivisionRepo
+):
+    """
+    Получить простой список всех подразделений (без пагинации).
+    Используется фронтендом для простого отображения.
+    """
+    try:
+        # Получаем все подразделения
+        items = await repo.get_all(limit=1000, offset=0, order_by="name")
+        return items
+    except Exception as e:
+        logger.error(f"Error getting subdivisions list: {e}")
+        return []
+
+
+@router.get("", response_model=PaginatedResponse[Subdivision])
+async def get_subdivisions(
+    pagination: PaginationParams,
+    current_user: CurrentUser,
+    repo: SubdivisionRepo,
+    search: Optional[str] = Query(None, description="Поиск по названию")
+):
+    """
+    Получить список подразделений с пагинацией.
+    
+    - **page**: номер страницы (по умолчанию 1)
+    - **size**: размер страницы (по умолчанию 50, максимум 100)
+    - **search**: поиск по названию
+    """
+    # Получаем общее количество
+    filters = {}
+    if search:
+        # Для поиска используем ILIKE в репозитории
+        filters['name_search'] = search
+    
+    total = await repo.count(filters)
+    
+    # Получаем данные с пагинацией
+    offset = (pagination.page - 1) * pagination.size
+    items = await repo.get_all(
+        limit=pagination.size,
+        offset=offset,
+        order_by=pagination.sort_by or "name",
+        order_desc=(pagination.sort_order == "desc")
+    )
+    
+    # Фильтруем по поиску если нужно (так как базовый get_all не поддерживает поиск)
+    if search:
+        items = [item for item in items if search.lower() in item.name.lower()]
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=pagination.page,
+        size=pagination.size,
+        pages=(total + pagination.size - 1) // pagination.size
+    )
 
 @router.get("", response_model=PaginatedResponse[Subdivision])
 async def get_subdivisions(

@@ -10,9 +10,12 @@ import {
   Switch,
   Box,
   Button,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
+import { groupsAPI } from '../services/api';
 
-const StudentForm = ({ data, groups, onSubmit }) => {
+const StudentForm = ({ data, onSubmit }) => {
   const [formData, setFormData] = useState({
     group_id: '',
     full_name: '',
@@ -20,6 +23,14 @@ const StudentForm = ({ data, groups, onSubmit }) => {
     is_budget: true,
     year: new Date().getFullYear(),
   });
+
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchGroups();
+  }, []);
 
   useEffect(() => {
     if (data) {
@@ -32,6 +43,31 @@ const StudentForm = ({ data, groups, onSubmit }) => {
       });
     }
   }, [data]);
+
+  const fetchGroups = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await groupsAPI.getAll();
+      const groupsData = response.data;
+      
+      if (groupsData && groupsData.items) {
+        setGroups(groupsData.items);
+      } else if (Array.isArray(groupsData)) {
+        setGroups(groupsData);
+      } else {
+        console.error('Unexpected groups data format:', groupsData);
+        setGroups([]);
+        setError('Не удалось загрузить группы');
+      }
+    } catch (err) {
+      console.error('Failed to load groups:', err);
+      setError('Не удалось загрузить группы');
+      setGroups([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (event) => {
     const { name, value, checked } = event.target;
@@ -55,6 +91,12 @@ const StudentForm = ({ data, groups, onSubmit }) => {
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
       <Grid container spacing={2}>
         <Grid item xs={12}>
           <FormControl fullWidth>
@@ -65,12 +107,22 @@ const StudentForm = ({ data, groups, onSubmit }) => {
               onChange={handleChange}
               label="Group"
               required
+              disabled={loading}
             >
-              {groups.map((group) => (
-                <MenuItem key={group.id} value={group.id}>
-                  {group.name}
+              {loading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  Loading groups...
                 </MenuItem>
-              ))}
+              ) : groups.length === 0 ? (
+                <MenuItem disabled>No groups available</MenuItem>
+              ) : (
+                groups.map((group) => (
+                  <MenuItem key={group.id} value={group.id}>
+                    {group.name} ({group.subdivision_name}) - {group.year}
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
         </Grid>

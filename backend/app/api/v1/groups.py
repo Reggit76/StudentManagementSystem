@@ -15,6 +15,110 @@ from ..deps import (
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
+@router.get("/list", response_model=List[Group])
+async def get_groups_list(
+    current_user: CurrentUser,
+    repo: GroupRepo,
+    subdivision_id: Optional[int] = Query(None, description="Фильтр по подразделению"),
+    year: Optional[int] = Query(None, description="Фильтр по году"),
+    search: Optional[str] = Query(None, description="Поиск по названию")
+):
+    """
+    Получить простой список групп (без пагинации).
+    Используется фронтендом для выпадающих списков и простого отображения.
+    """
+    try:
+        # Применяем ограничения по подразделению
+        filter_subdivision_id = PermissionChecker.filter_by_subdivision(
+            current_user, subdivision_id
+        )
+        
+        # Получаем группы
+        if filter_subdivision_id:
+            items = await repo.get_by_subdivision(
+                filter_subdivision_id, 
+                year,
+                limit=1000,
+                offset=0
+            )
+        else:
+            items = await repo.get_all(
+                limit=1000,
+                offset=0,
+                order_by="name",
+                order_desc=False
+            )
+        
+        # Фильтруем по поиску если нужно
+        if search:
+            items = [item for item in items if search.lower() in item.name.lower()]
+        
+        return items
+        
+    except Exception as e:
+        logger.error(f"Error getting groups list: {e}")
+        return []
+
+
+@router.get("", response_model=PaginatedResponse[Group])
+async def get_groups(
+    pagination: PaginationParams,
+    current_user: CurrentUser,
+    repo: GroupRepo,
+    subdivision_id: Optional[int] = Query(None, description="Фильтр по подразделению"),
+    year: Optional[int] = Query(None, description="Фильтр по году"),
+    search: Optional[str] = Query(None, description="Поиск по названию")
+):
+    """
+    Получить список групп с пагинацией.
+    
+    - **subdivision_id**: фильтр по подразделению (для не-админов автоматически применяется их подразделение)
+    - **year**: фильтр по году
+    - **search**: поиск по названию
+    """
+    # Применяем ограничения по подразделению
+    filter_subdivision_id = PermissionChecker.filter_by_subdivision(
+        current_user, subdivision_id
+    )
+    
+    # Подсчитываем общее количество
+    filters = {}
+    if filter_subdivision_id:
+        filters['subdivision_id'] = filter_subdivision_id
+    if year:
+        filters['year'] = year
+    
+    total = await repo.count(filters)
+    
+    # Получаем данные
+    offset = (pagination.page - 1) * pagination.size
+    
+    if filter_subdivision_id:
+        items = await repo.get_by_subdivision(
+            filter_subdivision_id, 
+            year,
+            limit=pagination.size,
+            offset=offset
+        )
+    else:
+        items = await repo.get_all(
+            limit=pagination.size,
+            offset=offset,
+            order_by=pagination.sort_by or "name",
+            order_desc=(pagination.sort_order == "desc")
+        )
+    
+    # Фильтруем по поиску если нужно
+    if search:
+        items = [item for item in items if search.lower() in item.name.lower()]
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=pagination.page,
+        size=pagination.size,
+        pages=(total + pagination.size - 1) // pagination.size
+    )
 
 @router.get("", response_model=PaginatedResponse[Group])
 async def get_groups(

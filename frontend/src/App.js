@@ -13,6 +13,7 @@ import Groups from './pages/Groups';
 import Divisions from './pages/Divisions';
 import Hostels from './pages/Hostels';
 import Contributions from './pages/Contributions';
+import Users from './pages/Users';
 
 const PrivateRoute = ({ children, requiredPermissions = [] }) => {
   const { user, loading, canAccessRoute } = useAuth();
@@ -67,7 +68,7 @@ const AppRoutes = () => {
       <Route
         path="/divisions"
         element={
-          <PrivateRoute requiredPermissions={['canManageDivision']}>
+          <PrivateRoute requiredPermissions={['canManageSubdivision']}>
             <Divisions />
           </PrivateRoute>
         }
@@ -87,6 +88,15 @@ const AppRoutes = () => {
         element={
           <PrivateRoute requiredPermissions={['canManageStudents']}>
             <Contributions />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/users"
+        element={
+          <PrivateRoute requiredPermissions={['canManageUsers']}>
+            <Users />
           </PrivateRoute>
         }
       />
@@ -123,4 +133,4 @@ const App = () => {
   );
 };
 
-export default App; 
+export default App;

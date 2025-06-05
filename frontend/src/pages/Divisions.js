@@ -18,59 +18,75 @@ import {
   DialogActions,
   Alert,
   TextField,
+  CircularProgress,
+  Chip,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import { divisionsAPI } from '../services/api';
+import { subdivisionsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const Divisions = () => {
   const { hasPermission } = useAuth();
-  const [divisions, setDivisions] = useState([]);
+  const [subdivisions, setSubdivisions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
 
   useEffect(() => {
-    fetchDivisions();
+    fetchSubdivisions();
   }, []);
 
-  const fetchDivisions = async () => {
+  const fetchSubdivisions = async () => {
     setLoading(true);
+    setError('');
     try {
-      const response = await divisionsAPI.getAll();
-      setDivisions(response.data);
+      const response = await subdivisionsAPI.getAll();
+      const subdivisionsData = response.data;
+      
+      if (subdivisionsData && subdivisionsData.items) {
+        setSubdivisions(subdivisionsData.items);
+      } else if (Array.isArray(subdivisionsData)) {
+        setSubdivisions(subdivisionsData);
+      } else {
+        console.error('Unexpected subdivisions data format:', subdivisionsData);
+        setSubdivisions([]);
+        setError('Некорректный формат данных подразделений');
+      }
     } catch (err) {
-      setError('Failed to load divisions');
+      console.error('Failed to load subdivisions:', err);
+      setError('Не удалось загрузить подразделения');
+      setSubdivisions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddDivision = () => {
+  const handleAddSubdivision = () => {
     setDialog({
       open: true,
       type: 'add',
-      data: { Name: '', Description: '' },
+      data: { name: '' },
     });
   };
 
-  const handleEditDivision = (division) => {
+  const handleEditSubdivision = (subdivision) => {
     setDialog({
       open: true,
       type: 'edit',
-      data: division,
+      data: subdivision,
     });
   };
 
-  const handleDeleteDivision = async (id) => {
-    if (window.confirm('Are you sure you want to delete this division?')) {
+  const handleDeleteSubdivision = async (id) => {
+    if (window.confirm('Вы уверены, что хотите удалить это подразделение?')) {
       try {
-        await divisionsAPI.delete(id);
-        fetchDivisions();
+        await subdivisionsAPI.delete(id);
+        fetchSubdivisions();
       } catch (err) {
-        setError('Failed to delete division');
+        console.error('Failed to delete subdivision:', err);
+        setError('Не удалось удалить подразделение');
       }
     }
   };
@@ -82,14 +98,15 @@ const Divisions = () => {
   const handleDialogSave = async () => {
     try {
       if (dialog.type === 'add') {
-        await divisionsAPI.create(dialog.data);
+        await subdivisionsAPI.create(dialog.data);
       } else {
-        await divisionsAPI.update(dialog.data.ID, dialog.data);
+        await subdivisionsAPI.update(dialog.data.id, dialog.data);
       }
       handleDialogClose();
-      fetchDivisions();
+      fetchSubdivisions();
     } catch (err) {
-      setError('Failed to save division');
+      console.error('Failed to save subdivision:', err);
+      setError('Не удалось сохранить подразделение');
     }
   };
 
@@ -101,20 +118,26 @@ const Divisions = () => {
     }));
   };
 
+  const getUnionPercentageColor = (percentage) => {
+    if (percentage >= 70) return 'success';
+    if (percentage >= 50) return 'warning';
+    return 'error';
+  };
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Divisions
+          Подразделения
         </Typography>
-        {hasPermission('canManageDivision') && (
+        {hasPermission('canManageSubdivision') && (
           <Button
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={handleAddDivision}
+            onClick={handleAddSubdivision}
           >
-            Add Division
+            Добавить подразделение
           </Button>
         )}
       </Box>
@@ -129,41 +152,53 @@ const Divisions = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>Название</TableCell>
+              <TableCell>Количество групп</TableCell>
+              <TableCell>Количество студентов</TableCell>
+              <TableCell>В профсоюзе</TableCell>
+              <TableCell>% в профсоюзе</TableCell>
+              <TableCell align="right">Действия</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={3} align="center">
-                  Loading...
+                <TableCell colSpan={6} align="center">
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
-            ) : divisions.length === 0 ? (
+            ) : subdivisions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} align="center">
-                  No divisions found
+                <TableCell colSpan={6} align="center">
+                  Подразделения не найдены
                 </TableCell>
               </TableRow>
             ) : (
-              divisions.map((division) => (
-                <TableRow key={division.ID}>
-                  <TableCell>{division.Name}</TableCell>
-                  <TableCell>{division.Description}</TableCell>
+              subdivisions.map((subdivision) => (
+                <TableRow key={subdivision.id}>
+                  <TableCell>{subdivision.name}</TableCell>
+                  <TableCell>{subdivision.groups_count || 0}</TableCell>
+                  <TableCell>{subdivision.students_count || 0}</TableCell>
+                  <TableCell>{subdivision.active_students_count || 0}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={`${subdivision.union_percentage || 0}%`}
+                      color={getUnionPercentageColor(subdivision.union_percentage || 0)}
+                      size="small"
+                    />
+                  </TableCell>
                   <TableCell align="right">
-                    {hasPermission('canManageDivision') && (
+                    {hasPermission('canManageSubdivision') && (
                       <>
                         <IconButton
                           color="primary"
-                          onClick={() => handleEditDivision(division)}
+                          onClick={() => handleEditSubdivision(subdivision)}
                         >
                           <EditIcon />
                         </IconButton>
                         <IconButton
                           color="error"
-                          onClick={() => handleDeleteDivision(division.ID)}
+                          onClick={() => handleDeleteSubdivision(subdivision.id)}
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -179,34 +214,25 @@ const Divisions = () => {
 
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {dialog.type === 'add' ? 'Add New Division' : 'Edit Division'}
+          {dialog.type === 'add' ? 'Добавить подразделение' : 'Редактировать подразделение'}
         </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             <TextField
               fullWidth
-              label="Name"
-              name="Name"
-              value={dialog.data?.Name || ''}
+              label="Название"
+              name="name"
+              value={dialog.data?.name || ''}
               onChange={handleInputChange}
               required
               sx={{ mb: 2 }}
             />
-            <TextField
-              fullWidth
-              label="Description"
-              name="Description"
-              value={dialog.data?.Description || ''}
-              onChange={handleInputChange}
-              multiline
-              rows={4}
-            />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button onClick={handleDialogClose}>Отмена</Button>
           <Button onClick={handleDialogSave} color="primary">
-            Save
+            Сохранить
           </Button>
         </DialogActions>
       </Dialog>
@@ -214,4 +240,4 @@ const Divisions = () => {
   );
 };
 
-export default Divisions; 
+export default Divisions;

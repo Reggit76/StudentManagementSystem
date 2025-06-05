@@ -46,9 +46,9 @@ export const authAPI = {
 // Students API
 export const studentsAPI = {
   getAll: (params) =>
-    api.get('/students/list', { params }), // Используем новый эндпоинт
+    api.get('/students/list', { params }),
   getAllPaginated: (params) =>
-    api.get('/students', { params }), // Старый эндпоинт с пагинацией
+    api.get('/students', { params }),
   getById: (id) =>
     api.get(`/students/${id}`),
   create: (data) =>
@@ -65,8 +65,14 @@ export const studentsAPI = {
 
 // Groups API
 export const groupsAPI = {
-  getAll: (params) =>
-    api.get('/groups', { params }),
+  getAll: (params) => {
+    // Если нужна пагинация, используем основной эндпоинт
+    if (params && (params.page || params.size)) {
+      return api.get('/groups', { params });
+    }
+    // Иначе используем простой список
+    return api.get('/groups/list', { params });
+  },
   getById: (id) =>
     api.get(`/groups/${id}`),
   create: (data) =>
@@ -77,18 +83,61 @@ export const groupsAPI = {
     api.delete(`/groups/${id}`),
 };
 
-// Divisions API
-export const divisionsAPI = {
-  getAll: (params) =>
-    api.get('/divisions', { params }),
+// Subdivisions API (исправлено с divisions на subdivisions)
+export const subdivisionsAPI = {
+  getAll: (params) => {
+    // Если нужна пагинация, используем основной эндпоинт
+    if (params && (params.page || params.size)) {
+      return api.get('/subdivisions', { params });
+    }
+    // Иначе используем простой список
+    return api.get('/subdivisions/list');
+  },
   getById: (id) =>
-    api.get(`/divisions/${id}`),
+    api.get(`/subdivisions/${id}`),
   create: (data) =>
-    api.post('/divisions', data),
+    api.post('/subdivisions', data),
   update: (id, data) =>
-    api.put(`/divisions/${id}`, data),
+    api.put(`/subdivisions/${id}`, data),
   delete: (id) =>
-    api.delete(`/divisions/${id}`),
+    api.delete(`/subdivisions/${id}`),
 };
 
-export default api; 
+// Users API
+export const usersAPI = {
+  getAll: (params) =>
+    api.get('/users', { params }),
+  getById: (id) =>
+    api.get(`/users/${id}`),
+  create: (data) =>
+    api.post('/users', data),
+  update: (id, data) =>
+    api.put(`/users/${id}`, data),
+  delete: (id) =>
+    api.delete(`/users/${id}`),
+  changePassword: (data) =>
+    api.post('/users/change-password', data),
+  addRole: (userId, roleId) =>
+    api.post(`/users/${userId}/roles/${roleId}`),
+  removeRole: (userId, roleId) =>
+    api.delete(`/users/${userId}/roles/${roleId}`),
+};
+
+// Roles API
+export const rolesAPI = {
+  getAll: () =>
+    api.get('/roles'),
+  getById: (id) =>
+    api.get(`/roles/${id}`),
+  create: (data) =>
+    api.post('/roles', data),
+  update: (id, data) =>
+    api.put(`/roles/${id}`, data),
+  delete: (id) =>
+    api.delete(`/roles/${id}`),
+};
+
+// Для обратной совместимости
+export const divisionsAPI = subdivisionsAPI;
+
+export default api;

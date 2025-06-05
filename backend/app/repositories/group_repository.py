@@ -164,6 +164,7 @@ class GroupRepository(BaseRepository[Group]):
             rows = await connection.fetch(query, *params)
             return [GroupWithStats(**dict(row)) for row in rows]
     
+    # Обновим метод _get_group_with_subdivision
     async def _get_group_with_subdivision(self, id: int, conn: Connection) -> Optional[Group]:
         """Внутренний метод для получения группы с информацией о подразделении"""
         query = """
@@ -171,7 +172,12 @@ class GroupRepository(BaseRepository[Group]):
                 g.*,
                 s.name as subdivision_name,
                 COUNT(st.id) as students_count,
-                COUNT(st.id) FILTER (WHERE st.isactive = true) as active_students_count
+                COUNT(st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                CASE 
+                    WHEN COUNT(st.id) > 0 
+                    THEN ROUND((COUNT(st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM groups g
             LEFT JOIN subdivisions s ON s.id = g.subdivisionid
             LEFT JOIN students st ON st.groupid = g.id

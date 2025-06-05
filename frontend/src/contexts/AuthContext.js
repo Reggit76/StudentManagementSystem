@@ -4,18 +4,19 @@ import { authAPI } from '../services/api';
 const AuthContext = createContext(null);
 
 export const ROLES = {
-  CHAIRMAN: 'CHAIRMAN',                    // Председатель профкома
-  DEPUTY_CHAIRMAN: 'DEPUTY_CHAIRMAN',     // Зам председателя
-  DIVISION_HEAD: 'DIVISION_HEAD',         // Председатель подразделения
-  DORMITORY_HEAD: 'DORMITORY_HEAD',       // Председатель общежития
+  CHAIRMAN: 'CHAIRMAN',
+  DEPUTY_CHAIRMAN: 'DEPUTY_CHAIRMAN',
+  DIVISION_HEAD: 'DIVISION_HEAD',
+  DORMITORY_HEAD: 'DORMITORY_HEAD',
 };
 
 // Права доступа для каждой роли
 export const ROLE_PERMISSIONS = {
   [ROLES.CHAIRMAN]: {
     canViewAll: true,
-    canManageUsers: true,
+    canManageUsers: true,  // Добавляем право управления пользователями
     canManageDivision: true,
+    canManageSubdivision: true,
     canManageGroups: true,
     canManageStudents: true,
     canViewDormitory: true,
@@ -24,8 +25,9 @@ export const ROLE_PERMISSIONS = {
   },
   [ROLES.DEPUTY_CHAIRMAN]: {
     canViewAll: true,
-    canManageUsers: false,
+    canManageUsers: false,  // Зам председателя не может управлять пользователями
     canManageDivision: true,
+    canManageSubdivision: true,
     canManageGroups: true,
     canManageStudents: true,
     canViewDormitory: true,
@@ -36,6 +38,7 @@ export const ROLE_PERMISSIONS = {
     canViewAll: false,
     canManageUsers: false,
     canManageDivision: false,
+    canManageSubdivision: false,
     canManageGroups: true,
     canManageStudents: true,
     canViewDormitory: false,
@@ -46,6 +49,7 @@ export const ROLE_PERMISSIONS = {
     canViewAll: false,
     canManageUsers: false,
     canManageDivision: false,
+    canManageSubdivision: false,
     canManageGroups: false,
     canManageStudents: true,
     canViewDormitory: true,
@@ -59,7 +63,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on mount
     const token = localStorage.getItem('token');
     if (token) {
       checkAuth();
@@ -86,7 +89,6 @@ export const AuthProvider = ({ children }) => {
       const { access_token } = response.data;
       localStorage.setItem('token', access_token);
       
-      // Получаем данные пользователя
       const userResponse = await authAPI.me();
       setUser(userResponse.data);
       

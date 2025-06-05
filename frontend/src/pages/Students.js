@@ -69,7 +69,6 @@ const Students = () => {
         ...params,
       };
       
-      // Убираем пустые параметры
       Object.keys(queryParams).forEach(key => {
         if (queryParams[key] === undefined || queryParams[key] === '') {
           delete queryParams[key];
@@ -79,7 +78,6 @@ const Students = () => {
       const response = await studentsAPI.getAll(queryParams);
       const studentsData = response.data;
       
-      // Проверяем, что получили массив
       if (Array.isArray(studentsData)) {
         setStudents(studentsData);
       } else {
@@ -119,12 +117,12 @@ const Students = () => {
   };
 
   const handleDeleteStudent = async (id) => {
-    if (window.confirm('Are you sure you want to delete this student?')) {
+    if (window.confirm('Вы уверены, что хотите удалить этого студента?')) {
       try {
         await studentsAPI.delete(id);
         fetchStudents();
       } catch (err) {
-        setError('Failed to delete student');
+        setError('Не удалось удалить студента');
       }
     }
   };
@@ -153,20 +151,21 @@ const Students = () => {
       handleDialogClose();
       fetchStudents();
     } catch (err) {
-      setError('Failed to save student');
+      console.error('Failed to save student:', err);
+      setError('Не удалось сохранить студента: ' + (err.response?.data?.detail || err.message));
     }
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Students
+          Студенты
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField
             size="small"
-            placeholder="Search students..."
+            placeholder="Поиск студентов..."
             value={searchTerm}
             onChange={handleSearch}
             InputProps={{
@@ -178,15 +177,15 @@ const Students = () => {
             }}
           />
           <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel id="group-select-label">Group</InputLabel>
+            <InputLabel id="group-select-label">Группа</InputLabel>
             <Select
               labelId="group-select-label"
               value={selectedGroup}
-              label="Group"
+              label="Группа"
               onChange={handleGroupChange}
               size="small"
             >
-              <MenuItem value="">All Groups</MenuItem>
+              <MenuItem value="">Все группы</MenuItem>
               {groups.map((group) => (
                 <MenuItem key={group.id} value={group.id}>
                   {group.name}
@@ -201,7 +200,7 @@ const Students = () => {
               startIcon={<AddIcon />}
               onClick={handleAddStudent}
             >
-              Add Student
+              Добавить студента
             </Button>
           )}
         </Box>
@@ -217,12 +216,12 @@ const Students = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Full Name</TableCell>
-              <TableCell>Group</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Budget</TableCell>
-              <TableCell>Year</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>ФИО</TableCell>
+              <TableCell>Группа</TableCell>
+              <TableCell>Статус</TableCell>
+              <TableCell>Обучение</TableCell>
+              <TableCell>Год поступления</TableCell>
+              <TableCell align="right">Действия</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -235,7 +234,7 @@ const Students = () => {
             ) : students.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} align="center">
-                  No students found
+                  Студенты не найдены
                 </TableCell>
               </TableRow>
             ) : (
@@ -245,14 +244,14 @@ const Students = () => {
                   <TableCell>{student.group_name}</TableCell>
                   <TableCell>
                     <Chip
-                      label={student.is_active || student.isactive ? 'Active' : 'Inactive'}
+                      label={student.is_active || student.isactive ? 'Активный' : 'Неактивный'}
                       color={student.is_active || student.isactive ? 'success' : 'default'}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={student.is_budget || student.isbudget ? 'Budget' : 'Contract'}
+                      label={student.is_budget || student.isbudget ? 'Бюджет' : 'Контракт'}
                       color={student.is_budget || student.isbudget ? 'primary' : 'default'}
                       size="small"
                     />
@@ -283,22 +282,20 @@ const Students = () => {
         </Table>
       </TableContainer>
 
-      {/* Student Form Dialog */}
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {dialog.type === 'add' ? 'Add New Student' : 'Edit Student'}
+          {dialog.type === 'add' ? 'Добавить студента' : 'Редактировать студента'}
         </DialogTitle>
         <DialogContent>
           {dialog.open && (
             <StudentForm
               data={dialog.data}
-              groups={groups}
               onSubmit={handleDialogSave}
             />
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button onClick={handleDialogClose}>Отмена</Button>
         </DialogActions>
       </Dialog>
     </Container>

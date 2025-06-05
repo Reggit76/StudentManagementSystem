@@ -27,10 +27,9 @@ import { useAuth } from '../contexts/AuthContext';
 const drawerWidth = 240;
 
 const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Divisions', icon: <SchoolIcon />, path: '/divisions' },
-  { text: 'Groups', icon: <GroupIcon />, path: '/groups' },
-  { text: 'Students', icon: <PersonIcon />, path: '/students' },
+  { text: 'Студенты', icon: <PersonIcon />, path: '/students' },
+  { text: 'Группы', icon: <GroupIcon />, path: '/groups' },
+  { text: 'Подразделения', icon: <SchoolIcon />, path: '/divisions' },
 ];
 
 export default function Layout() {
@@ -54,7 +53,11 @@ export default function Layout() {
 
   const drawer = (
     <div>
-      <Toolbar />
+      <Toolbar>
+        <Typography variant="h6" noWrap>
+          Меню
+        </Typography>
+      </Toolbar>
       <List>
         {menuItems.map((item) => (
           <ListItem
@@ -83,7 +86,7 @@ export default function Layout() {
         <Toolbar>
           <IconButton
             color="inherit"
-            aria-label="open drawer"
+            aria-label="открыть меню"
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { sm: 'none' } }}
@@ -91,10 +94,10 @@ export default function Layout() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Student Union Management
+            Управление профсоюзом студентов
           </Typography>
           <Button color="inherit" onClick={handleLogout} startIcon={<LogoutIcon />}>
-            Logout
+            Выйти
           </Button>
         </Toolbar>
       </AppBar>
@@ -137,13 +140,14 @@ export default function Layout() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
+          minHeight: '100vh',
+          backgroundColor: '#f5f5f5',
         }}
       >
-        <Toolbar />
+        <Toolbar /> {/* Добавляем отступ для шапки */}
         <Outlet />
       </Box>
     </Box>
   );
-} 
+}

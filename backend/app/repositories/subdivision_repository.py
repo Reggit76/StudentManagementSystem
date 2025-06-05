@@ -60,7 +60,13 @@ class SubdivisionRepository(BaseRepository[Subdivision]):
                 s.*,
                 COUNT(DISTINCT g.id) as groups_count,
                 COUNT(DISTINCT st.id) as students_count,
-                COUNT(DISTINCT u.id) as users_count
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                COUNT(DISTINCT u.id) as users_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM subdivisions s
             LEFT JOIN groups g ON g.subdivisionid = s.id
             LEFT JOIN students st ON st.groupid = g.id
@@ -80,7 +86,13 @@ class SubdivisionRepository(BaseRepository[Subdivision]):
                 s.*,
                 COUNT(DISTINCT g.id) as groups_count,
                 COUNT(DISTINCT st.id) as students_count,
-                COUNT(DISTINCT u.id) as users_count
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                COUNT(DISTINCT u.id) as users_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
             FROM subdivisions s
             LEFT JOIN groups g ON g.subdivisionid = s.id
             LEFT JOIN students st ON st.groupid = g.id
@@ -92,3 +104,36 @@ class SubdivisionRepository(BaseRepository[Subdivision]):
         async with self._get_connection(conn) as connection:
             rows = await connection.fetch(query)
             return [SubdivisionWithStats(**dict(row)) for row in rows]
+    
+    async def get_all(
+        self, 
+        limit: int = 100, 
+        offset: int = 0,
+        order_by: str = "name",
+        order_desc: bool = False,
+        conn: Optional[Connection] = None
+    ) -> List[Subdivision]:
+        """Получить все записи с пагинацией и статистикой"""
+        order = "DESC" if order_desc else "ASC"
+        query = f"""
+            SELECT 
+                s.*,
+                COUNT(DISTINCT g.id) as groups_count,
+                COUNT(DISTINCT st.id) as students_count,
+                COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) as active_students_count,
+                CASE 
+                    WHEN COUNT(DISTINCT st.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT st.id) FILTER (WHERE st.isactive = true) * 100.0) / COUNT(DISTINCT st.id), 1)
+                    ELSE 0 
+                END as union_percentage
+            FROM subdivisions s
+            LEFT JOIN groups g ON g.subdivisionid = s.id
+            LEFT JOIN students st ON st.groupid = g.id
+            GROUP BY s.id
+            ORDER BY {order_by} {order}
+            LIMIT $1 OFFSET $2
+        """
+        
+        async with self._get_connection(conn) as connection:
+            rows = await connection.fetch(query, limit, offset)
+            return [Subdivision(**dict(row)) for row in rows]

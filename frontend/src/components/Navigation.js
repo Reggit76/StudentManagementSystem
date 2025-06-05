@@ -19,6 +19,7 @@ import {
   Business as BusinessIcon,
   Apartment as ApartmentIcon,
   Payment as PaymentIcon,
+  AdminPanelSettings as AdminIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,34 +33,44 @@ const Navigation = () => {
 
   const menuItems = [
     {
-      text: 'Students',
+      text: 'Студенты',
       icon: <PeopleIcon />,
       path: '/students',
       permission: null,
     },
     {
-      text: 'Groups',
+      text: 'Группы',
       icon: <GroupIcon />,
       path: '/groups',
       permission: 'canManageGroups',
     },
     {
-      text: 'Divisions',
+      text: 'Подразделения',
       icon: <BusinessIcon />,
       path: '/divisions',
-      permission: 'canManageDivision',
+      permission: 'canManageSubdivision',
     },
     {
-      text: 'Hostels',
+      text: 'Общежития',
       icon: <ApartmentIcon />,
       path: '/hostels',
       permission: 'canViewDormitory',
     },
     {
-      text: 'Contributions',
+      text: 'Взносы',
       icon: <PaymentIcon />,
       path: '/contributions',
       permission: 'canManageStudents',
+    },
+  ];
+
+  // Админ-пункты меню
+  const adminMenuItems = [
+    {
+      text: 'Пользователи',
+      icon: <AdminIcon />,
+      path: '/users',
+      permission: 'canManageUsers',
     },
   ];
 
@@ -81,7 +92,7 @@ const Navigation = () => {
       >
         <Toolbar>
           <Typography variant="h6" noWrap component="div">
-            Student Union Management
+            Управление профсоюзом студентов
           </Typography>
         </Toolbar>
       </AppBar>
@@ -99,10 +110,12 @@ const Navigation = () => {
       >
         <Toolbar>
           <Typography variant="h6" noWrap>
-            Menu
+            Меню
           </Typography>
         </Toolbar>
         <Divider />
+        
+        {/* Основные пункты меню */}
         <List>
           {menuItems.map((item) => {
             if (item.permission && !hasPermission(item.permission)) {
@@ -121,6 +134,37 @@ const Navigation = () => {
             );
           })}
         </List>
+
+        {/* Админ-раздел */}
+        {adminMenuItems.some(item => !item.permission || hasPermission(item.permission)) && (
+          <>
+            <Divider />
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography variant="subtitle2" color="text.secondary">
+                Администрирование
+              </Typography>
+            </Box>
+            <List>
+              {adminMenuItems.map((item) => {
+                if (item.permission && !hasPermission(item.permission)) {
+                  return null;
+                }
+                return (
+                  <ListItem
+                    button
+                    key={item.text}
+                    onClick={() => navigate(item.path)}
+                    selected={location.pathname === item.path}
+                  >
+                    <ListItemIcon>{item.icon}</ListItemIcon>
+                    <ListItemText primary={item.text} />
+                  </ListItem>
+                );
+              })}
+            </List>
+          </>
+        )}
+
         <Divider />
         <Box sx={{ mt: 'auto', mb: 2 }}>
           <List>
@@ -134,7 +178,7 @@ const Navigation = () => {
               <ListItemIcon>
                 <LogoutIcon />
               </ListItemIcon>
-              <ListItemText primary="Logout" />
+              <ListItemText primary="Выйти" />
             </ListItem>
           </List>
         </Box>

@@ -12,6 +12,7 @@ class Subdivision(BaseDBModel, SubdivisionBase):
     students_count: int = Field(default=0, description="Количество студентов")
     active_students_count: int = Field(default=0, description="Количество активных студентов")
     groups_count: int = Field(default=0, description="Количество групп")
+    union_percentage: float = Field(default=0.0, description="Процент в профсоюзе")
 
 
 class SubdivisionCreate(BaseCreateModel, SubdivisionBase):
