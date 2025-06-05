@@ -9,52 +9,36 @@ import {
   FormControlLabel,
   Switch,
   Box,
+  Button,
 } from '@mui/material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 const StudentForm = ({ data, groups, onSubmit }) => {
   const [formData, setFormData] = useState({
-    GroupID: '',
-    FullName: '',
-    IsActive: false,
-    IsBudget: true,
-    Year: new Date().getFullYear(),
-    Data: {
-      Phone: '',
-      Email: '',
-      Birthday: null,
-    },
+    group_id: '',
+    full_name: '',
+    is_active: false,
+    is_budget: true,
+    year: new Date().getFullYear(),
   });
 
   useEffect(() => {
     if (data) {
       setFormData({
-        ...data,
-        Data: {
-          ...data.Data,
-          Birthday: data.Data?.Birthday ? new Date(data.Data.Birthday) : null,
-        },
+        group_id: data.group_id || data.groupid || '',
+        full_name: data.full_name || data.fullname || '',
+        is_active: data.is_active || data.isactive || false,
+        is_budget: data.is_budget || data.isbudget || true,
+        year: data.year || new Date().getFullYear(),
       });
     }
   }, [data]);
 
   const handleChange = (event) => {
     const { name, value, checked } = event.target;
-    if (name === 'IsActive' || name === 'IsBudget') {
+    if (name === 'is_active' || name === 'is_budget') {
       setFormData(prev => ({
         ...prev,
         [name]: checked,
-      }));
-    } else if (name.startsWith('Data.')) {
-      const field = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        Data: {
-          ...prev.Data,
-          [field]: value,
-        },
       }));
     } else {
       setFormData(prev => ({
@@ -76,15 +60,15 @@ const StudentForm = ({ data, groups, onSubmit }) => {
           <FormControl fullWidth>
             <InputLabel>Group</InputLabel>
             <Select
-              name="GroupID"
-              value={formData.GroupID}
+              name="group_id"
+              value={formData.group_id}
               onChange={handleChange}
               label="Group"
               required
             >
               {groups.map((group) => (
-                <MenuItem key={group.ID} value={group.ID}>
-                  {group.Name}
+                <MenuItem key={group.id} value={group.id}>
+                  {group.name}
                 </MenuItem>
               ))}
             </Select>
@@ -95,8 +79,8 @@ const StudentForm = ({ data, groups, onSubmit }) => {
           <TextField
             fullWidth
             label="Full Name"
-            name="FullName"
-            value={formData.FullName}
+            name="full_name"
+            value={formData.full_name}
             onChange={handleChange}
             required
           />
@@ -106,8 +90,8 @@ const StudentForm = ({ data, groups, onSubmit }) => {
           <FormControlLabel
             control={
               <Switch
-                name="IsActive"
-                checked={formData.IsActive}
+                name="is_active"
+                checked={formData.is_active}
                 onChange={handleChange}
               />
             }
@@ -119,8 +103,8 @@ const StudentForm = ({ data, groups, onSubmit }) => {
           <FormControlLabel
             control={
               <Switch
-                name="IsBudget"
-                checked={formData.IsBudget}
+                name="is_budget"
+                checked={formData.is_budget}
                 onChange={handleChange}
               />
             }
@@ -131,47 +115,28 @@ const StudentForm = ({ data, groups, onSubmit }) => {
         <Grid item xs={12}>
           <TextField
             fullWidth
-            label="Phone"
-            name="Data.Phone"
-            value={formData.Data.Phone}
+            label="Year"
+            name="year"
+            type="number"
+            value={formData.year}
             onChange={handleChange}
+            required
           />
         </Grid>
 
         <Grid item xs={12}>
-          <TextField
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
             fullWidth
-            label="Email"
-            name="Data.Email"
-            type="email"
-            value={formData.Data.Email}
-            onChange={handleChange}
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker
-              label="Birthday"
-              value={formData.Data.Birthday}
-              onChange={(newValue) => {
-                setFormData(prev => ({
-                  ...prev,
-                  Data: {
-                    ...prev.Data,
-                    Birthday: newValue,
-                  },
-                }));
-              }}
-              renderInput={(params) => (
-                <TextField {...params} fullWidth name="Data.Birthday" />
-              )}
-            />
-          </LocalizationProvider>
+          >
+            Save
+          </Button>
         </Grid>
       </Grid>
     </Box>
   );
 };
 
-export default StudentForm; 
+export default StudentForm;

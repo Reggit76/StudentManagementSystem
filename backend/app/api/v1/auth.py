@@ -21,7 +21,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
     user_repo: UserRepo,
-    form_data: OAuth2PasswordRequestForm = Depends()
+    login_data: UserAuth
 ) -> Any:
     """
     Авторизация пользователя.
@@ -30,12 +30,12 @@ async def login_for_access_token(
     """
     try:
         # Получаем пользователя
-        user = await user_repo.get_by_login(form_data.username)
+        user = await user_repo.get_by_login(login_data.username)
         if not user:
             raise AuthenticationError("Неверный логин или пароль")
         
         # Проверяем пароль
-        if not verify_password(form_data.password, user.passwordhash):
+        if not verify_password(login_data.password, user.passwordhash):
             raise AuthenticationError("Неверный логин или пароль")
         
         # Создаем токен
@@ -69,6 +69,19 @@ async def login_for_access_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка при авторизации"
         )
+
+
+# Альтернативный эндпоинт для OAuth2 совместимости
+@router.post("/token", response_model=Token)
+async def login_oauth2(
+    user_repo: UserRepo,
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Any:
+    """
+    OAuth2 совместимый эндпоинт авторизации.
+    """
+    login_data = UserAuth(username=form_data.username, password=form_data.password)
+    return await login_for_access_token(user_repo, login_data)
 
 
 @router.get("/me", response_model=User)

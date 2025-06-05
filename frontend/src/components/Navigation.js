@@ -28,7 +28,7 @@ const drawerWidth = 240;
 const Navigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, getRoleDisplayName } = useAuth();
 
   const menuItems = [
     {
@@ -126,8 +126,8 @@ const Navigation = () => {
           <List>
             <ListItem>
               <ListItemText
-                primary={user.FullName}
-                secondary={user.Roles.join(', ')}
+                primary={user.login}
+                secondary={user.roles.map(role => getRoleDisplayName(role.name)).join(', ')}
               />
             </ListItem>
             <ListItem button onClick={handleLogout}>
@@ -144,4 +144,4 @@ const Navigation = () => {
   );
 };
 
-export default Navigation; 
+export default Navigation;

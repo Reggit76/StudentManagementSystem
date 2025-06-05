@@ -18,11 +18,11 @@ class TokenData(BaseModel):
 
 class UserAuth(BaseModel):
     """Модель для аутентификации"""
-    username: str
-    password: str
+    username: str = Field(..., description="Имя пользователя")
+    password: str = Field(..., description="Пароль")
 
 
 class ChangePasswordRequest(BaseModel):
     """Модель для изменения пароля"""
-    old_password: str
-    new_password: str
+    old_password: str = Field(..., description="Старый пароль")
+    new_password: str = Field(..., min_length=6, description="Новый пароль")

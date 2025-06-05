@@ -106,12 +106,12 @@ async def create_subdivision(
     data: SubdivisionCreate,
     _: CSRFProtection,
     repo: SubdivisionRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Создать новое подразделение.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем уникальность имени
     existing = await repo.get_by_name(data.name)

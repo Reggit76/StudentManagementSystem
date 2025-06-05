@@ -46,7 +46,9 @@ export const authAPI = {
 // Students API
 export const studentsAPI = {
   getAll: (params) =>
-    api.get('/students', { params }),
+    api.get('/students/list', { params }), // Используем новый эндпоинт
+  getAllPaginated: (params) =>
+    api.get('/students', { params }), // Старый эндпоинт с пагинацией
   getById: (id) =>
     api.get(`/students/${id}`),
   create: (data) =>

@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogActions,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -51,23 +52,45 @@ const Students = () => {
   const fetchGroups = async () => {
     try {
       const response = await groupsAPI.getAll();
-      setGroups(response.data);
+      setGroups(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
-      setError('Failed to load groups');
+      console.error('Failed to load groups:', err);
+      setGroups([]);
     }
   };
 
   const fetchStudents = async (params = {}) => {
     setLoading(true);
+    setError('');
     try {
-      const response = await studentsAPI.getAll({
-        group_id: selectedGroup,
-        search: searchTerm,
+      const queryParams = {
+        group_id: selectedGroup || undefined,
+        search: searchTerm || undefined,
         ...params,
+      };
+      
+      // Убираем пустые параметры
+      Object.keys(queryParams).forEach(key => {
+        if (queryParams[key] === undefined || queryParams[key] === '') {
+          delete queryParams[key];
+        }
       });
-      setStudents(response.data);
+
+      const response = await studentsAPI.getAll(queryParams);
+      const studentsData = response.data;
+      
+      // Проверяем, что получили массив
+      if (Array.isArray(studentsData)) {
+        setStudents(studentsData);
+      } else {
+        console.error('Expected array, got:', studentsData);
+        setStudents([]);
+        setError('Некорректный формат данных от сервера');
+      }
     } catch (err) {
-      setError('Failed to load students');
+      console.error('Failed to load students:', err);
+      setError('Не удалось загрузить список студентов');
+      setStudents([]);
     } finally {
       setLoading(false);
     }
@@ -78,16 +101,11 @@ const Students = () => {
       open: true,
       type: 'add',
       data: {
-        GroupID: selectedGroup,
-        FullName: '',
-        IsActive: false,
-        IsBudget: true,
-        Year: new Date().getFullYear(),
-        Data: {
-          Phone: '',
-          Email: '',
-          Birthday: null,
-        },
+        group_id: selectedGroup || '',
+        full_name: '',
+        is_active: false,
+        is_budget: true,
+        year: new Date().getFullYear(),
       },
     });
   };
@@ -113,12 +131,12 @@ const Students = () => {
 
   const handleGroupChange = (event) => {
     setSelectedGroup(event.target.value);
-    fetchStudents({ group_id: event.target.value });
+    setTimeout(() => fetchStudents({ group_id: event.target.value }), 100);
   };
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
-    fetchStudents({ search: event.target.value });
+    setTimeout(() => fetchStudents({ search: event.target.value }), 300);
   };
 
   const handleDialogClose = () => {
@@ -130,7 +148,7 @@ const Students = () => {
       if (dialog.type === 'add') {
         await studentsAPI.create(formData);
       } else {
-        await studentsAPI.update(dialog.data.ID, formData);
+        await studentsAPI.update(dialog.data.id, formData);
       }
       handleDialogClose();
       fetchStudents();
@@ -170,8 +188,8 @@ const Students = () => {
             >
               <MenuItem value="">All Groups</MenuItem>
               {groups.map((group) => (
-                <MenuItem key={group.ID} value={group.ID}>
-                  {group.Name}
+                <MenuItem key={group.id} value={group.id}>
+                  {group.name}
                 </MenuItem>
               ))}
             </Select>
@@ -203,7 +221,7 @@ const Students = () => {
               <TableCell>Group</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Budget</TableCell>
-              <TableCell>Contact</TableCell>
+              <TableCell>Year</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -211,7 +229,7 @@ const Students = () => {
             {loading ? (
               <TableRow>
                 <TableCell colSpan={6} align="center">
-                  Loading...
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : students.length === 0 ? (
@@ -222,31 +240,24 @@ const Students = () => {
               </TableRow>
             ) : (
               students.map((student) => (
-                <TableRow key={student.ID}>
-                  <TableCell>{student.FullName}</TableCell>
-                  <TableCell>{student.Group?.Name}</TableCell>
+                <TableRow key={student.id}>
+                  <TableCell>{student.full_name || student.fullname}</TableCell>
+                  <TableCell>{student.group_name}</TableCell>
                   <TableCell>
                     <Chip
-                      label={student.IsActive ? 'Active' : 'Inactive'}
-                      color={student.IsActive ? 'success' : 'default'}
+                      label={student.is_active || student.isactive ? 'Active' : 'Inactive'}
+                      color={student.is_active || student.isactive ? 'success' : 'default'}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={student.IsBudget ? 'Budget' : 'Contract'}
-                      color={student.IsBudget ? 'primary' : 'default'}
+                      label={student.is_budget || student.isbudget ? 'Budget' : 'Contract'}
+                      color={student.is_budget || student.isbudget ? 'primary' : 'default'}
                       size="small"
                     />
                   </TableCell>
-                  <TableCell>
-                    {student.Data?.Email && (
-                      <div>{student.Data.Email}</div>
-                    )}
-                    {student.Data?.Phone && (
-                      <div>{student.Data.Phone}</div>
-                    )}
-                  </TableCell>
+                  <TableCell>{student.year}</TableCell>
                   <TableCell align="right">
                     {hasPermission('canManageStudents') && (
                       <>
@@ -258,7 +269,7 @@ const Students = () => {
                         </IconButton>
                         <IconButton
                           color="error"
-                          onClick={() => handleDeleteStudent(student.ID)}
+                          onClick={() => handleDeleteStudent(student.id)}
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -294,4 +305,4 @@ const Students = () => {
   );
 };
 
-export default Students; 
+export default Students;

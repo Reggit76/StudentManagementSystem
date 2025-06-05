@@ -4,10 +4,10 @@ import { authAPI } from '../services/api';
 const AuthContext = createContext(null);
 
 export const ROLES = {
-  CHAIRMAN: 'CHAIRMAN',           // Председатель профкома
-  DEPUTY_CHAIRMAN: 'DEPUTY_CHAIRMAN', // Зам председателя
-  DIVISION_HEAD: 'DIVISION_HEAD',     // Председатель подразделения
-  DORMITORY_HEAD: 'DORMITORY_HEAD',   // Председатель общежития
+  CHAIRMAN: 'CHAIRMAN',                    // Председатель профкома
+  DEPUTY_CHAIRMAN: 'DEPUTY_CHAIRMAN',     // Зам председателя
+  DIVISION_HEAD: 'DIVISION_HEAD',         // Председатель подразделения
+  DORMITORY_HEAD: 'DORMITORY_HEAD',       // Председатель общежития
 };
 
 // Права доступа для каждой роли
@@ -19,22 +19,38 @@ export const ROLE_PERMISSIONS = {
     canManageGroups: true,
     canManageStudents: true,
     canViewDormitory: true,
+    canManageRoles: true,
+    canDeleteAll: true,
   },
   [ROLES.DEPUTY_CHAIRMAN]: {
     canViewAll: true,
+    canManageUsers: false,
     canManageDivision: true,
     canManageGroups: true,
     canManageStudents: true,
     canViewDormitory: true,
+    canManageRoles: false,
+    canDeleteAll: false,
   },
   [ROLES.DIVISION_HEAD]: {
-    canManageDivision: true,
+    canViewAll: false,
+    canManageUsers: false,
+    canManageDivision: false,
     canManageGroups: true,
     canManageStudents: true,
+    canViewDormitory: false,
+    canManageRoles: false,
+    canDeleteAll: false,
   },
   [ROLES.DORMITORY_HEAD]: {
-    canViewDormitory: true,
+    canViewAll: false,
+    canManageUsers: false,
+    canManageDivision: false,
+    canManageGroups: false,
     canManageStudents: true,
+    canViewDormitory: true,
+    canManageRoles: false,
+    canDeleteAll: false,
   },
 };
 
@@ -57,6 +73,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.me();
       setUser(response.data);
     } catch (error) {
+      console.error('Auth check failed:', error);
       localStorage.removeItem('token');
     } finally {
       setLoading(false);
@@ -75,6 +92,7 @@ export const AuthProvider = ({ children }) => {
       
       return userResponse.data;
     } catch (error) {
+      console.error('Login failed:', error);
       throw new Error(error.response?.data?.detail || 'Login failed');
     }
   };
@@ -85,8 +103,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const hasPermission = (permission) => {
-    if (!user || !user.Roles) return false;
-    return user.Roles.some(role => ROLE_PERMISSIONS[role]?.[permission]);
+    if (!user || !user.roles) return false;
+    return user.roles.some(role => ROLE_PERMISSIONS[role.name]?.[permission]);
   };
 
   const canAccessRoute = (requiredPermissions) => {
@@ -96,6 +114,16 @@ export const AuthProvider = ({ children }) => {
     return requiredPermissions.some(permission => hasPermission(permission));
   };
 
+  const getRoleDisplayName = (roleName) => {
+    const roleNames = {
+      'CHAIRMAN': 'Председатель профкома',
+      'DEPUTY_CHAIRMAN': 'Заместитель председателя',
+      'DIVISION_HEAD': 'Председатель подразделения',
+      'DORMITORY_HEAD': 'Председатель общежития'
+    };
+    return roleNames[roleName] || roleName;
+  };
+
   const value = {
     user,
     loading,
@@ -103,6 +131,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     hasPermission,
     canAccessRoute,
+    getRoleDisplayName,
   };
 
   return (
@@ -118,4 +147,4 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}; 
+};

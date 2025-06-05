@@ -10,7 +10,7 @@ class PermissionChecker:
     
     # Определение прав для ролей
     ROLE_PERMISSIONS = {
-        "Администратор": [
+        "CHAIRMAN": [
             "view_all",
             "edit_all",
             "delete_all",
@@ -22,7 +22,15 @@ class PermissionChecker:
             "manage_contributions",
             "view_reports"
         ],
-        "Модератор": [
+        "DEPUTY_CHAIRMAN": [
+            "view_all",
+            "edit_all",
+            "manage_groups",
+            "manage_students",
+            "manage_contributions",
+            "view_reports"
+        ],
+        "DIVISION_HEAD": [
             "view_subdivision",
             "edit_subdivision",
             "manage_groups_subdivision",
@@ -30,14 +38,11 @@ class PermissionChecker:
             "manage_contributions_subdivision",
             "view_reports_subdivision"
         ],
-        "Оператор": [
+        "DORMITORY_HEAD": [
             "view_subdivision",
-            "edit_students_subdivision",
-            "edit_contributions_subdivision"
-        ],
-        "Наблюдатель": [
-            "view_subdivision",
-            "view_reports_subdivision"
+            "view_dormitory",
+            "manage_dormitory",
+            "edit_students_subdivision"
         ]
     }
     
@@ -61,7 +66,7 @@ class PermissionChecker:
     @classmethod
     def can_access_subdivision(cls, user: User, subdivision_id: int) -> bool:
         """Проверить доступ к подразделению"""
-        # Администраторы имеют доступ ко всем подразделениям
+        # CHAIRMAN и DEPUTY_CHAIRMAN имеют доступ ко всем подразделениям
         if cls.has_permission(user, "view_all"):
             return True
         
@@ -93,7 +98,7 @@ class PermissionChecker:
     @classmethod
     def filter_by_subdivision(cls, user: User, query_subdivision_id: Optional[int] = None) -> Optional[int]:
         """Получить ID подразделения для фильтрации"""
-        # Администраторы могут видеть все или фильтровать по конкретному
+        # CHAIRMAN и DEPUTY_CHAIRMAN могут видеть все или фильтровать по конкретному
         if cls.has_permission(user, "view_all"):
             return query_subdivision_id
         
