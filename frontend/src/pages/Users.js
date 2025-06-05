@@ -35,8 +35,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InputAdornment from '@mui/material/InputAdornment';
+import { usersAPI, rolesAPI, subdivisionsAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const Users = () => {
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [subdivisions, setSubdivisions] = useState([]);
@@ -45,86 +48,64 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
 
-  // Моковые данные для демонстрации
-  const mockRoles = [
-    { id: 1, name: 'CHAIRMAN' },
-    { id: 2, name: 'DEPUTY_CHAIRMAN' },
-    { id: 3, name: 'DIVISION_HEAD' },
-    { id: 4, name: 'DORMITORY_HEAD' },
-  ];
-
-  const mockSubdivisions = [
-    { id: 1, name: 'Тестовое подразделение' },
-    { id: 2, name: 'Факультет информатики' },
-    { id: 3, name: 'Экономический факультет' },
-  ];
-
-  const mockUsers = [
-    {
-      id: 1,
-      login: 'admin',
-      subdivision_name: null,
-      subdivisionid: null,
-      roles: [{ id: 1, name: 'CHAIRMAN' }],
-    },
-    {
-      id: 2,
-      login: 'moderator1',
-      subdivision_name: 'Факультет информатики',
-      subdivisionid: 2,
-      roles: [{ id: 3, name: 'DIVISION_HEAD' }],
-    },
-  ];
-
   useEffect(() => {
-    fetchUsers();
-    fetchRoles();
-    fetchSubdivisions();
-  }, []);
+    if (hasPermission('canManageUsers')) {
+      fetchUsers();
+      fetchRoles();
+      fetchSubdivisions();
+    }
+  }, [hasPermission]);
 
   const fetchUsers = async () => {
     setLoading(true);
+    setError('');
     try {
-      // TODO: Заменить на реальный API вызов
-      // const response = await usersAPI.getAll();
-      // setUsers(response.data);
+      const response = await usersAPI.getAll();
+      const usersData = response.data;
       
-      // Пока используем моковые данные
-      setTimeout(() => {
-        setUsers(mockUsers);
-        setLoading(false);
-      }, 500);
+      if (usersData && usersData.items) {
+        setUsers(usersData.items);
+      } else if (Array.isArray(usersData)) {
+        setUsers(usersData);
+      } else {
+        console.error('Unexpected users data format:', usersData);
+        setUsers([]);
+        setError('Некорректный формат данных пользователей');
+      }
     } catch (err) {
       console.error('Failed to load users:', err);
       setError('Не удалось загрузить пользователей');
-      setUsers(mockUsers);
+      setUsers([]);
+    } finally {
       setLoading(false);
     }
   };
 
   const fetchRoles = async () => {
     try {
-      // TODO: Заменить на реальный API вызов
-      // const response = await rolesAPI.getAll();
-      // setRoles(response.data);
-      
-      setRoles(mockRoles);
+      const response = await rolesAPI.getAll();
+      setRoles(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Failed to load roles:', err);
-      setRoles(mockRoles);
+      setRoles([]);
     }
   };
 
   const fetchSubdivisions = async () => {
     try {
-      // TODO: Заменить на реальный API вызов
-      // const response = await subdivisionsAPI.getAll();
-      // setSubdivisions(response.data);
+      const response = await subdivisionsAPI.getAll();
+      const subdivisionsData = response.data;
       
-      setSubdivisions(mockSubdivisions);
+      if (subdivisionsData && subdivisionsData.items) {
+        setSubdivisions(subdivisionsData.items);
+      } else if (Array.isArray(subdivisionsData)) {
+        setSubdivisions(subdivisionsData);
+      } else {
+        setSubdivisions([]);
+      }
     } catch (err) {
       console.error('Failed to load subdivisions:', err);
-      setSubdivisions(mockSubdivisions);
+      setSubdivisions([]);
     }
   };
 
@@ -148,19 +129,21 @@ const Users = () => {
       data: {
         ...user,
         password: '',
-        role_ids: user.roles.map(role => role.id),
+        role_ids: user.roles ? user.roles.map(role => role.id) : [],
       },
     });
   };
 
-  const handleDeleteUser = async (id) => {
+  const handleDeleteUser = async (id, login) => {
+    if (login === 'admin') {
+      setError('Нельзя удалить главного администратора');
+      return;
+    }
+
     if (window.confirm('Вы уверены, что хотите удалить этого пользователя?')) {
       try {
-        // TODO: Заменить на реальный API вызов
-        // await usersAPI.delete(id);
-        
-        // Временно удаляем из локального состояния
-        setUsers(users.filter(user => user.id !== id));
+        await usersAPI.delete(id);
+        fetchUsers();
       } catch (err) {
         console.error('Failed to delete user:', err);
         setError('Не удалось удалить пользователя');
@@ -191,32 +174,18 @@ const Users = () => {
         return;
       }
 
-      // TODO: Заменить на реальный API вызов
       if (dialog.type === 'add') {
-        // await usersAPI.create(dialog.data);
-        
-        // Временно добавляем в локальное состояние
-        const newUser = {
-          id: Date.now(),
-          login: dialog.data.login,
-          subdivisionid: dialog.data.subdivisionid || null,
-          subdivision_name: subdivisions.find(s => s.id === dialog.data.subdivisionid)?.name || null,
-          roles: roles.filter(role => dialog.data.role_ids.includes(role.id)),
-        };
-        setUsers([...users, newUser]);
+        await usersAPI.create(dialog.data);
       } else {
-        // await usersAPI.update(dialog.data.id, dialog.data);
-        
-        // Временно обновляем в локальном состоянии
-        const updatedUser = {
-          ...dialog.data,
-          subdivision_name: subdivisions.find(s => s.id === dialog.data.subdivisionid)?.name || null,
-          roles: roles.filter(role => dialog.data.role_ids.includes(role.id)),
-        };
-        setUsers(users.map(user => user.id === dialog.data.id ? updatedUser : user));
+        const updateData = { ...dialog.data };
+        if (!updateData.password) {
+          delete updateData.password; // Не обновляем пароль, если он пустой
+        }
+        await usersAPI.update(dialog.data.id, updateData);
       }
 
       handleDialogClose();
+      fetchUsers();
     } catch (err) {
       console.error('Failed to save user:', err);
       setError('Не удалось сохранить пользователя: ' + (err.response?.data?.detail || err.message));
@@ -252,6 +221,16 @@ const Users = () => {
   const filteredUsers = users.filter(user =>
     user.login.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (!hasPermission('canManageUsers')) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
+        <Alert severity="error">
+          У вас нет прав для просмотра этой страницы
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
@@ -320,7 +299,7 @@ const Users = () => {
                   <TableCell>{user.subdivision_name || 'Все подразделения'}</TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      {user.roles.map((role) => (
+                      {user.roles && user.roles.map((role) => (
                         <Chip
                           key={role.id}
                           label={getRoleDisplayName(role.name)}
@@ -340,7 +319,7 @@ const Users = () => {
                     {user.login !== 'admin' && (
                       <IconButton
                         color="error"
-                        onClick={() => handleDeleteUser(user.id)}
+                        onClick={() => handleDeleteUser(user.id, user.login)}
                       >
                         <DeleteIcon />
                       </IconButton>

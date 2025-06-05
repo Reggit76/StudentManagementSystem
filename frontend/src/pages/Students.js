@@ -29,10 +29,12 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import InputAdornment from '@mui/material/InputAdornment';
 import { studentsAPI, groupsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import StudentForm from '../components/StudentForm';
+import StudentDetailModal from '../components/StudentDetailModal';
 
 const Students = () => {
   const { user, hasPermission } = useAuth();
@@ -43,11 +45,21 @@ const Students = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
+  const [detailDialog, setDetailDialog] = useState({ open: false, student: null });
 
   useEffect(() => {
     fetchGroups();
     fetchStudents();
   }, []);
+
+  useEffect(() => {
+    // Debounce search
+    const timeoutId = setTimeout(() => {
+      fetchStudents();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, selectedGroup]);
 
   const fetchGroups = async () => {
     try {
@@ -108,7 +120,8 @@ const Students = () => {
     });
   };
 
-  const handleEditStudent = (student) => {
+  const handleEditStudent = (student, event) => {
+    event.stopPropagation(); // Предотвращаем открытие детальной модалки
     setDialog({
       open: true,
       type: 'edit',
@@ -116,7 +129,8 @@ const Students = () => {
     });
   };
 
-  const handleDeleteStudent = async (id) => {
+  const handleDeleteStudent = async (id, event) => {
+    event.stopPropagation(); // Предотвращаем открытие детальной модалки
     if (window.confirm('Вы уверены, что хотите удалить этого студента?')) {
       try {
         await studentsAPI.delete(id);
@@ -127,14 +141,16 @@ const Students = () => {
     }
   };
 
+  const handleRowClick = (student) => {
+    setDetailDialog({ open: true, student });
+  };
+
   const handleGroupChange = (event) => {
     setSelectedGroup(event.target.value);
-    setTimeout(() => fetchStudents({ group_id: event.target.value }), 100);
   };
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
-    setTimeout(() => fetchStudents({ search: event.target.value }), 300);
   };
 
   const handleDialogClose = () => {
@@ -153,6 +169,20 @@ const Students = () => {
     } catch (err) {
       console.error('Failed to save student:', err);
       setError('Не удалось сохранить студента: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleDetailSave = async (studentData) => {
+    try {
+      if (detailDialog.student) {
+        await studentsAPI.update(detailDialog.student.id, studentData);
+      } else {
+        await studentsAPI.create(studentData);
+      }
+      fetchStudents();
+    } catch (err) {
+      console.error('Failed to save student:', err);
+      throw err;
     }
   };
 
@@ -239,7 +269,17 @@ const Students = () => {
               </TableRow>
             ) : (
               students.map((student) => (
-                <TableRow key={student.id}>
+                <TableRow 
+                  key={student.id}
+                  hover
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    }
+                  }}
+                  onClick={() => handleRowClick(student)}
+                >
                   <TableCell>{student.full_name || student.fullname}</TableCell>
                   <TableCell>{student.group_name}</TableCell>
                   <TableCell>
@@ -258,17 +298,29 @@ const Students = () => {
                   </TableCell>
                   <TableCell>{student.year}</TableCell>
                   <TableCell align="right">
+                    <IconButton
+                      color="info"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowClick(student);
+                      }}
+                      title="Подробнее"
+                    >
+                      <VisibilityIcon />
+                    </IconButton>
                     {hasPermission('canManageStudents') && (
                       <>
                         <IconButton
                           color="primary"
-                          onClick={() => handleEditStudent(student)}
+                          onClick={(e) => handleEditStudent(student, e)}
+                          title="Редактировать"
                         >
                           <EditIcon />
                         </IconButton>
                         <IconButton
                           color="error"
-                          onClick={() => handleDeleteStudent(student.id)}
+                          onClick={(e) => handleDeleteStudent(student.id, e)}
+                          title="Удалить"
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -282,6 +334,7 @@ const Students = () => {
         </Table>
       </TableContainer>
 
+      {/* Простая форма для быстрого создания/редактирования */}
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
           {dialog.type === 'add' ? 'Добавить студента' : 'Редактировать студента'}
@@ -298,6 +351,14 @@ const Students = () => {
           <Button onClick={handleDialogClose}>Отмена</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Детальная модалка студента */}
+      <StudentDetailModal
+        open={detailDialog.open}
+        student={detailDialog.student}
+        onClose={() => setDetailDialog({ open: false, student: null })}
+        onSave={handleDetailSave}
+      />
     </Container>
   );
 };

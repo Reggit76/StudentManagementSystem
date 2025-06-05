@@ -20,6 +20,7 @@ import {
   Apartment as ApartmentIcon,
   Payment as PaymentIcon,
   AdminPanelSettings as AdminIcon,
+  History as HistoryIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -71,6 +72,12 @@ const Navigation = () => {
       icon: <AdminIcon />,
       path: '/users',
       permission: 'canManageUsers',
+    },
+    {
+      text: 'Журнал действий',
+      icon: <HistoryIcon />,
+      path: '/logs',
+      permission: 'canViewAll',
     },
   ];
 
@@ -171,7 +178,10 @@ const Navigation = () => {
             <ListItem>
               <ListItemText
                 primary={user.login}
-                secondary={user.roles.map(role => getRoleDisplayName(role.name)).join(', ')}
+                secondary={user.roles && user.roles.length > 0 
+                  ? user.roles.map(role => getRoleDisplayName(role.name)).join(', ')
+                  : 'Нет ролей'
+                }
               />
             </ListItem>
             <ListItem button onClick={handleLogout}>

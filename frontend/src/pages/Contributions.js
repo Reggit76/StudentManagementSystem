@@ -22,15 +22,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
+  Chip,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import { studentsAPI } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
 
 const Contributions = () => {
-  const { hasPermission } = useAuth();
   const [contributions, setContributions] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -44,11 +43,15 @@ const Contributions = () => {
 
   const fetchContributions = async () => {
     setLoading(true);
+    setError('');
     try {
-      const response = await studentsAPI.getAll({ contributions: true });
-      setContributions(response.data);
+      // Пока используем моковые данные, так как в БД пусто
+      const mockContributions = [];
+      setContributions(mockContributions);
     } catch (err) {
-      setError('Failed to load contributions');
+      console.error('Failed to load contributions:', err);
+      setError('Не удалось загрузить данные о взносах');
+      setContributions([]);
     } finally {
       setLoading(false);
     }
@@ -56,10 +59,12 @@ const Contributions = () => {
 
   const fetchStudents = async () => {
     try {
-      const response = await studentsAPI.getAll();
-      setStudents(response.data);
+      // TODO: Загрузить список студентов
+      const mockStudents = [];
+      setStudents(mockStudents);
     } catch (err) {
-      setError('Failed to load students');
+      console.error('Failed to load students:', err);
+      setStudents([]);
     }
   };
 
@@ -68,11 +73,11 @@ const Contributions = () => {
       open: true,
       type: 'add',
       data: {
-        StudentID: '',
-        Amount: '',
-        PaymentDate: new Date().toISOString().split('T')[0],
-        Period: new Date().getFullYear(),
-        Notes: '',
+        student_id: '',
+        semester: 1,
+        amount: '',
+        payment_date: new Date().toISOString().split('T')[0],
+        year: new Date().getFullYear(),
       },
     });
   };
@@ -81,17 +86,20 @@ const Contributions = () => {
     setDialog({
       open: true,
       type: 'edit',
-      data: contribution,
+      data: {
+        ...contribution,
+        payment_date: contribution.payment_date ? new Date(contribution.payment_date).toISOString().split('T')[0] : '',
+      },
     });
   };
 
   const handleDeleteContribution = async (id) => {
-    if (window.confirm('Are you sure you want to delete this contribution?')) {
+    if (window.confirm('Вы уверены, что хотите удалить этот взнос?')) {
       try {
-        await studentsAPI.delete(`${id}/contributions`);
-        fetchContributions();
+        // TODO: Реальное удаление
+        setContributions(contributions.filter(c => c.id !== id));
       } catch (err) {
-        setError('Failed to delete contribution');
+        setError('Не удалось удалить взнос');
       }
     }
   };
@@ -102,15 +110,11 @@ const Contributions = () => {
 
   const handleDialogSave = async () => {
     try {
-      if (dialog.type === 'add') {
-        await studentsAPI.create('contributions', dialog.data);
-      } else {
-        await studentsAPI.update(`${dialog.data.StudentID}/contributions/${dialog.data.ID}`, dialog.data);
-      }
+      // TODO: Реальное сохранение
       handleDialogClose();
       fetchContributions();
     } catch (err) {
-      setError('Failed to save contribution');
+      setError('Не удалось сохранить взнос');
     }
   };
 
@@ -122,22 +126,37 @@ const Contributions = () => {
     }));
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Не указана';
+    try {
+      return new Date(dateString).toLocaleDateString('ru-RU');
+    } catch {
+      return 'Некорректная дата';
+    }
+  };
+
+  const formatAmount = (amount) => {
+    if (!amount) return '0';
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: 'RUB'
+    }).format(amount);
+  };
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Contributions
+          Взносы студентов
         </Typography>
-        {hasPermission('canManageStudents') && (
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleAddContribution}
-          >
-            Add Contribution
-          </Button>
-        )}
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleAddContribution}
+        >
+          Добавить взнос
+        </Button>
       </Box>
 
       {error && (
@@ -150,56 +169,58 @@ const Contributions = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Student Name</TableCell>
-              <TableCell>Group</TableCell>
-              <TableCell>Amount</TableCell>
-              <TableCell>Payment Date</TableCell>
-              <TableCell>Period</TableCell>
-              <TableCell>Notes</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>ФИО студента</TableCell>
+              <TableCell>Группа</TableCell>
+              <TableCell>Сумма</TableCell>
+              <TableCell>Дата оплаты</TableCell>
+              <TableCell>Семестр</TableCell>
+              <TableCell>Год</TableCell>
+              <TableCell>Статус</TableCell>
+              <TableCell align="right">Действия</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
-                  Loading...
+                <TableCell colSpan={8} align="center">
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : contributions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
-                  No contributions found
+                <TableCell colSpan={8} align="center">
+                  Нет данных о взносах
                 </TableCell>
               </TableRow>
             ) : (
               contributions.map((contribution) => (
-                <TableRow key={contribution.ID}>
-                  <TableCell>{contribution.Student?.FullName}</TableCell>
-                  <TableCell>{contribution.Student?.Group?.Name}</TableCell>
-                  <TableCell>{contribution.Amount}</TableCell>
+                <TableRow key={contribution.id}>
+                  <TableCell>{contribution.student_name}</TableCell>
+                  <TableCell>{contribution.group_name}</TableCell>
+                  <TableCell>{formatAmount(contribution.amount)}</TableCell>
+                  <TableCell>{formatDate(contribution.payment_date)}</TableCell>
+                  <TableCell>{contribution.semester}</TableCell>
+                  <TableCell>{contribution.year}</TableCell>
                   <TableCell>
-                    {new Date(contribution.PaymentDate).toLocaleDateString()}
+                    <Chip
+                      label={contribution.payment_date ? 'Оплачен' : 'Не оплачен'}
+                      color={contribution.payment_date ? 'success' : 'error'}
+                      size="small"
+                    />
                   </TableCell>
-                  <TableCell>{contribution.Period}</TableCell>
-                  <TableCell>{contribution.Notes}</TableCell>
                   <TableCell align="right">
-                    {hasPermission('canManageStudents') && (
-                      <>
-                        <IconButton
-                          color="primary"
-                          onClick={() => handleEditContribution(contribution)}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          color="error"
-                          onClick={() => handleDeleteContribution(contribution.ID)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </>
-                    )}
+                    <IconButton
+                      color="primary"
+                      onClick={() => handleEditContribution(contribution)}
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDeleteContribution(contribution.id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
               ))
@@ -210,23 +231,23 @@ const Contributions = () => {
 
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {dialog.type === 'add' ? 'Add New Contribution' : 'Edit Contribution'}
+          {dialog.type === 'add' ? 'Добавить взнос' : 'Редактировать взнос'}
         </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             {dialog.type === 'add' && (
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Student</InputLabel>
+                <InputLabel>Студент</InputLabel>
                 <Select
-                  name="StudentID"
-                  value={dialog.data?.StudentID || ''}
+                  name="student_id"
+                  value={dialog.data?.student_id || ''}
                   onChange={handleInputChange}
-                  label="Student"
+                  label="Студент"
                   required
                 >
                   {students.map((student) => (
-                    <MenuItem key={student.ID} value={student.ID}>
-                      {student.FullName} ({student.Group?.Name})
+                    <MenuItem key={student.id} value={student.id}>
+                      {student.full_name} ({student.group_name})
                     </MenuItem>
                   ))}
                 </Select>
@@ -234,50 +255,53 @@ const Contributions = () => {
             )}
             <TextField
               fullWidth
-              label="Amount"
-              name="Amount"
+              label="Сумма взноса"
+              name="amount"
               type="number"
-              value={dialog.data?.Amount || ''}
+              value={dialog.data?.amount || ''}
+              onChange={handleInputChange}
+              required
+              sx={{ mb: 2 }}
+            />
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Семестр</InputLabel>
+              <Select
+                name="semester"
+                value={dialog.data?.semester || 1}
+                onChange={handleInputChange}
+                label="Семестр"
+                required
+              >
+                <MenuItem value={1}>1 семестр</MenuItem>
+                <MenuItem value={2}>2 семестр</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Год"
+              name="year"
+              type="number"
+              value={dialog.data?.year || new Date().getFullYear()}
               onChange={handleInputChange}
               required
               sx={{ mb: 2 }}
             />
             <TextField
               fullWidth
-              label="Payment Date"
-              name="PaymentDate"
+              label="Дата оплаты"
+              name="payment_date"
               type="date"
-              value={dialog.data?.PaymentDate || ''}
+              value={dialog.data?.payment_date || ''}
               onChange={handleInputChange}
-              required
               sx={{ mb: 2 }}
               InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              fullWidth
-              label="Period"
-              name="Period"
-              type="number"
-              value={dialog.data?.Period || new Date().getFullYear()}
-              onChange={handleInputChange}
-              required
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Notes"
-              name="Notes"
-              value={dialog.data?.Notes || ''}
-              onChange={handleInputChange}
-              multiline
-              rows={4}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button onClick={handleDialogClose}>Отмена</Button>
           <Button onClick={handleDialogSave} color="primary">
-            Save
+            Сохранить
           </Button>
         </DialogActions>
       </Dialog>
@@ -285,4 +309,4 @@ const Contributions = () => {
   );
 };
 
-export default Contributions; 
+export default Contributions;

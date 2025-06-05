@@ -22,33 +22,48 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import { studentsAPI } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
 
 const Hostels = () => {
-  const { hasPermission } = useAuth();
   const [hostelStudents, setHostelStudents] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
 
   useEffect(() => {
     fetchHostelStudents();
+    fetchStudents();
   }, []);
 
   const fetchHostelStudents = async () => {
     setLoading(true);
+    setError('');
     try {
-      const response = await studentsAPI.getAll({ hostel: true });
-      setHostelStudents(response.data);
+      // Пока используем моковые данные, так как в БД пусто
+      const mockHostelStudents = [];
+      setHostelStudents(mockHostelStudents);
     } catch (err) {
-      setError('Failed to load hostel students');
+      console.error('Failed to load hostel students:', err);
+      setError('Не удалось загрузить данные об общежитии');
+      setHostelStudents([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      // TODO: Загрузить список студентов для выпадающего списка
+      const mockStudents = [];
+      setStudents(mockStudents);
+    } catch (err) {
+      console.error('Failed to load students:', err);
+      setStudents([]);
     }
   };
 
@@ -57,10 +72,10 @@ const Hostels = () => {
       open: true,
       type: 'add',
       data: {
-        RoomNumber: '',
-        Block: '',
-        CheckInDate: new Date().toISOString().split('T')[0],
-        Notes: '',
+        student_id: '',
+        hostel: 1,
+        room: '',
+        comment: '',
       },
     });
   };
@@ -69,20 +84,17 @@ const Hostels = () => {
     setDialog({
       open: true,
       type: 'edit',
-      data: {
-        ...student.HostelData,
-        StudentID: student.ID,
-      },
+      data: student,
     });
   };
 
   const handleDeleteHostelStudent = async (id) => {
-    if (window.confirm('Are you sure you want to remove this student from the hostel?')) {
+    if (window.confirm('Вы уверены, что хотите удалить эту запись?')) {
       try {
-        await studentsAPI.delete(`${id}/hostel`);
-        fetchHostelStudents();
+        // TODO: Реальное удаление
+        setHostelStudents(hostelStudents.filter(h => h.id !== id));
       } catch (err) {
-        setError('Failed to remove student from hostel');
+        setError('Не удалось удалить запись');
       }
     }
   };
@@ -93,15 +105,11 @@ const Hostels = () => {
 
   const handleDialogSave = async () => {
     try {
-      if (dialog.type === 'add') {
-        await studentsAPI.create('hostel', dialog.data);
-      } else {
-        await studentsAPI.update(`${dialog.data.StudentID}/hostel`, dialog.data);
-      }
+      // TODO: Реальное сохранение
       handleDialogClose();
       fetchHostelStudents();
     } catch (err) {
-      setError('Failed to save hostel student');
+      setError('Не удалось сохранить данные');
     }
   };
 
@@ -114,21 +122,19 @@ const Hostels = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Hostel Students
+          Проживающие в общежитии
         </Typography>
-        {hasPermission('canViewDormitory') && (
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleAddHostelStudent}
-          >
-            Add Hostel Student
-          </Button>
-        )}
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleAddHostelStudent}
+        >
+          Добавить проживающего
+        </Button>
       </Box>
 
       {error && (
@@ -141,56 +147,48 @@ const Hostels = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Student Name</TableCell>
-              <TableCell>Group</TableCell>
-              <TableCell>Room</TableCell>
-              <TableCell>Block</TableCell>
-              <TableCell>Check-in Date</TableCell>
-              <TableCell>Notes</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>ФИО студента</TableCell>
+              <TableCell>Группа</TableCell>
+              <TableCell>Общежитие</TableCell>
+              <TableCell>Комната</TableCell>
+              <TableCell>Комментарий</TableCell>
+              <TableCell align="right">Действия</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
-                  Loading...
+                <TableCell colSpan={6} align="center">
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : hostelStudents.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
-                  No hostel students found
+                <TableCell colSpan={6} align="center">
+                  Нет данных о проживающих в общежитии
                 </TableCell>
               </TableRow>
             ) : (
               hostelStudents.map((student) => (
-                <TableRow key={student.ID}>
-                  <TableCell>{student.FullName}</TableCell>
-                  <TableCell>{student.Group?.Name}</TableCell>
-                  <TableCell>{student.HostelData?.RoomNumber}</TableCell>
-                  <TableCell>{student.HostelData?.Block}</TableCell>
-                  <TableCell>
-                    {new Date(student.HostelData?.CheckInDate).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>{student.HostelData?.Notes}</TableCell>
+                <TableRow key={student.id}>
+                  <TableCell>{student.student_name}</TableCell>
+                  <TableCell>{student.group_name}</TableCell>
+                  <TableCell>№{student.hostel}</TableCell>
+                  <TableCell>{student.room}</TableCell>
+                  <TableCell>{student.comment}</TableCell>
                   <TableCell align="right">
-                    {hasPermission('canViewDormitory') && (
-                      <>
-                        <IconButton
-                          color="primary"
-                          onClick={() => handleEditHostelStudent(student)}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          color="error"
-                          onClick={() => handleDeleteHostelStudent(student.ID)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </>
-                    )}
+                    <IconButton
+                      color="primary"
+                      onClick={() => handleEditHostelStudent(student)}
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDeleteHostelStudent(student.id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
               ))
@@ -201,68 +199,69 @@ const Hostels = () => {
 
       <Dialog open={dialog.open} onClose={handleDialogClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {dialog.type === 'add' ? 'Add New Hostel Student' : 'Edit Hostel Student'}
+          {dialog.type === 'add' ? 'Добавить проживающего' : 'Редактировать данные'}
         </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             {dialog.type === 'add' && (
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Student</InputLabel>
+                <InputLabel>Студент</InputLabel>
                 <Select
-                  name="StudentID"
-                  value={dialog.data?.StudentID || ''}
+                  name="student_id"
+                  value={dialog.data?.student_id || ''}
                   onChange={handleInputChange}
-                  label="Student"
+                  label="Студент"
                   required
                 >
-                  {/* Add student options here */}
+                  {students.map((student) => (
+                    <MenuItem key={student.id} value={student.id}>
+                      {student.full_name} ({student.group_name})
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             )}
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Общежитие</InputLabel>
+              <Select
+                name="hostel"
+                value={dialog.data?.hostel || 1}
+                onChange={handleInputChange}
+                label="Общежитие"
+                required
+              >
+                {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                  <MenuItem key={num} value={num}>
+                    Общежитие №{num}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               fullWidth
-              label="Room Number"
-              name="RoomNumber"
-              value={dialog.data?.RoomNumber || ''}
+              label="Номер комнаты"
+              name="room"
+              type="number"
+              value={dialog.data?.room || ''}
               onChange={handleInputChange}
               required
               sx={{ mb: 2 }}
             />
             <TextField
               fullWidth
-              label="Block"
-              name="Block"
-              value={dialog.data?.Block || ''}
-              onChange={handleInputChange}
-              required
-              sx={{ mb: 2 }}
-            />
-            <TextField
-              fullWidth
-              label="Check-in Date"
-              name="CheckInDate"
-              type="date"
-              value={dialog.data?.CheckInDate || ''}
-              onChange={handleInputChange}
-              required
-              sx={{ mb: 2 }}
-              InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              fullWidth
-              label="Notes"
-              name="Notes"
-              value={dialog.data?.Notes || ''}
+              label="Комментарий"
+              name="comment"
+              value={dialog.data?.comment || ''}
               onChange={handleInputChange}
               multiline
-              rows={4}
+              rows={3}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button onClick={handleDialogClose}>Отмена</Button>
           <Button onClick={handleDialogSave} color="primary">
-            Save
+            Сохранить
           </Button>
         </DialogActions>
       </Dialog>
@@ -270,4 +269,4 @@ const Hostels = () => {
   );
 };
 
-export default Hostels; 
+export default Hostels;
