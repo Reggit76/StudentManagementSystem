@@ -32,10 +32,10 @@ class AuditService:
             user_agent = None
             
             if request:
-                # Получаем IP адрес
+                # Получаем IP адрес и конвертируем в строку
                 forwarded_for = request.headers.get("X-Forwarded-For")
                 if forwarded_for:
-                    ip_address = forwarded_for.split(",")[0].strip()
+                    ip_address = str(forwarded_for.split(",")[0].strip())
                 else:
                     ip_address = str(request.client.host) if request.client else None
                 

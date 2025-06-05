@@ -25,7 +25,11 @@ api_router.include_router(students_router)
 api_router.include_router(contributions_router)
 api_router.include_router(hostels_router)
 api_router.include_router(users_router)
-api_router.include_router(audit_logs_router)
+try:
+    from .audit_logs import router as audit_logs_router
+    api_router.include_router(audit_logs_router)
+except ImportError as e:
+    print(f"Warning: Could not import audit_logs router: {e}")
 
 # Экспортируем для использования в main.py
 __all__ = ["api_router"]

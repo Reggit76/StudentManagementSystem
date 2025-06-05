@@ -23,6 +23,7 @@ import {
   ExitToApp as LogoutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import Navigation from './Navigation';
 
 const drawerWidth = 240;
 
@@ -32,7 +33,7 @@ const menuItems = [
   { text: 'Подразделения', icon: <SchoolIcon />, path: '/divisions' },
 ];
 
-export default function Layout() {
+const Layout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -74,80 +75,30 @@ export default function Layout() {
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="открыть меню"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Управление профсоюзом студентов
-          </Typography>
-          <Button color="inherit" onClick={handleLogout} startIcon={<LogoutIcon />}>
-            Выйти
-          </Button>
-        </Toolbar>
-      </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
+      <Navigation />
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          minHeight: '100vh',
+          p: 3,
+          mt: '64px',
+          width: { sm: `calc(100% - 240px)` },
+          ml: { sm: '240px' },
           backgroundColor: '#f5f5f5',
+          position: 'relative',
+          zIndex: 1,
+          '& .MuiButton-root': {
+            position: 'relative',
+            zIndex: 2,
+          },
         }}
       >
-        <Toolbar /> {/* Добавляем отступ для шапки */}
         <Outlet />
       </Box>
     </Box>
   );
-}
+};
+
+export default Layout;

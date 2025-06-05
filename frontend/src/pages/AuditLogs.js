@@ -76,17 +76,22 @@ const AuditLogs = () => {
       const response = await auditLogsAPI.getAll(params);
       const logsData = response.data;
       
-      if (logsData && logsData.items) {
+      if (logsData && Array.isArray(logsData.items)) {
         setLogs(logsData.items);
-        setTotal(logsData.total);
+        setTotal(logsData.total || logsData.items.length);
+      } else if (Array.isArray(logsData)) {
+        setLogs(logsData);
+        setTotal(logsData.length);
       } else {
+        console.error('Unexpected logs data format:', logsData);
         setLogs([]);
         setTotal(0);
       }
     } catch (err) {
       console.error('Failed to load audit logs:', err);
-      setError('Не удалось загрузить логи аудита');
+      setError(err.response?.data?.detail || 'Не удалось загрузить логи аудита');
       setLogs([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -97,10 +102,13 @@ const AuditLogs = () => {
       const response = await usersAPI.getAll();
       const usersData = response.data;
       
-      if (usersData && usersData.items) {
+      if (usersData && Array.isArray(usersData.items)) {
         setUsers(usersData.items);
       } else if (Array.isArray(usersData)) {
         setUsers(usersData);
+      } else {
+        console.error('Unexpected users data format:', usersData);
+        setUsers([]);
       }
     } catch (err) {
       console.error('Failed to load users:', err);
@@ -128,6 +136,16 @@ const AuditLogs = () => {
       date_from: '',
       date_to: '',
     });
+    setPage(0);
+    fetchLogs();
+  };
+
+  const handlePageChange = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleRowsPerPageChange = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
@@ -176,24 +194,25 @@ const AuditLogs = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 2, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Логи аудита
-      </Typography>
+    <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Журнал действий
+        </Typography>
+      </Box>
 
-      {/* Фильтры */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
+          <Grid container spacing={2} alignItems="flex-end">
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
                 <InputLabel>Пользователь</InputLabel>
                 <Select
                   value={filters.user_id}
-                  label="Пользователь"
                   onChange={(e) => handleFilterChange('user_id', e.target.value)}
+                  label="Пользователь"
                 >
-                  <MenuItem value="">Все пользователи</MenuItem>
+                  <MenuItem value="">Все</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
                       {user.login}
@@ -203,15 +222,15 @@ const AuditLogs = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
                 <InputLabel>Действие</InputLabel>
                 <Select
                   value={filters.action}
-                  label="Действие"
                   onChange={(e) => handleFilterChange('action', e.target.value)}
+                  label="Действие"
                 >
-                  <MenuItem value="">Все действия</MenuItem>
+                  <MenuItem value="">Все</MenuItem>
                   {actions.map((action) => (
                     <MenuItem key={action} value={action}>
                       {action}
@@ -221,15 +240,15 @@ const AuditLogs = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
                 <InputLabel>Таблица</InputLabel>
                 <Select
                   value={filters.table_name}
-                  label="Таблица"
                   onChange={(e) => handleFilterChange('table_name', e.target.value)}
+                  label="Таблица"
                 >
-                  <MenuItem value="">Все таблицы</MenuItem>
+                  <MenuItem value="">Все</MenuItem>
                   {tables.map((table) => (
                     <MenuItem key={table} value={table}>
                       {getTableDisplayName(table)}
@@ -239,49 +258,48 @@ const AuditLogs = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
-                size="small"
                 label="Дата от"
-                type="datetime-local"
+                type="date"
                 value={filters.date_from}
                 onChange={(e) => handleFilterChange('date_from', e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
-                size="small"
                 label="Дата до"
-                type="datetime-local"
+                type="date"
                 value={filters.date_to}
                 onChange={(e) => handleFilterChange('date_to', e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
 
-            <Grid item xs={12} sm={6} md={2}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="contained"
-                  onClick={handleSearch}
-                  startIcon={<RefreshIcon />}
-                  size="small"
-                >
-                  Поиск
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleClearFilters}
-                  startIcon={<ClearIcon />}
-                  size="small"
-                >
-                  Очистить
-                </Button>
-              </Box>
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                variant="contained"
+                onClick={handleSearch}
+                startIcon={<RefreshIcon />}
+                fullWidth
+              >
+                Обновить
+              </Button>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                variant="outlined"
+                onClick={handleClearFilters}
+                startIcon={<ClearIcon />}
+                fullWidth
+              >
+                Сбросить
+              </Button>
             </Grid>
           </Grid>
         </CardContent>
@@ -293,68 +311,72 @@ const AuditLogs = () => {
         </Alert>
       )}
 
-      {/* Таблица логов */}
-      <Paper>
-        <TableContainer>
-          <Table>
-            <TableHead>
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Дата и время</TableCell>
+              <TableCell>Пользователь</TableCell>
+              <TableCell>IP адрес</TableCell>
+              <TableCell>Действие</TableCell>
+              <TableCell>Таблица</TableCell>
+              <TableCell>Запись</TableCell>
+              <TableCell>Изменения</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
               <TableRow>
-                <TableCell>Дата и время</TableCell>
-                <TableCell>Пользователь</TableCell>
-                <TableCell>Действие</TableCell>
-                <TableCell>Таблица</TableCell>
-                <TableCell>ID записи</TableCell>
-                <TableCell>IP адрес</TableCell>
+                <TableCell colSpan={7} align="center">
+                  <CircularProgress />
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    <CircularProgress />
+            ) : logs.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  Нет данных
+                </TableCell>
+              </TableRow>
+            ) : (
+              logs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell>{formatDateTime(log.created_at)}</TableCell>
+                  <TableCell>{log.user_login}</TableCell>
+                  <TableCell>{log.ip_address}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={log.action}
+                      color={getActionColor(log.action)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>{getTableDisplayName(log.table_name)}</TableCell>
+                  <TableCell>{log.record_id}</TableCell>
+                  <TableCell>
+                    {log.changes ? (
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                        {JSON.stringify(log.changes, null, 2)}
+                      </pre>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
                 </TableRow>
-              ) : logs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    Логи не найдены
-                  </TableCell>
-                </TableRow>
-              ) : (
-                logs.map((log) => (
-                  <TableRow key={log.id} hover>
-                    <TableCell>{formatDateTime(log.created_at)}</TableCell>
-                    <TableCell>{log.user_login || 'Система'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={log.action}
-                        color={getActionColor(log.action)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{getTableDisplayName(log.table_name)}</TableCell>
-                    <TableCell>{log.record_id}</TableCell>
-                    <TableCell>{log.ip_address || '-'}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        
-        <TablePagination
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          component="div"
-          count={total}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={(event, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(event) => {
-            setRowsPerPage(parseInt(event.target.value, 10));
-            setPage(0);
-          }}
-        />
-      </Paper>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={total}
+        page={page}
+        onPageChange={handlePageChange}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleRowsPerPageChange}
+        rowsPerPageOptions={[10, 25, 50, 100]}
+      />
     </Container>
   );
 };

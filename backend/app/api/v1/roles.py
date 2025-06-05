@@ -67,12 +67,12 @@ async def update_role(
     data: RoleUpdate,
     _: CSRFProtection,
     repo: RoleRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Обновить роль.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем существование
     existing = await repo.get_by_id(role_id)
@@ -80,7 +80,7 @@ async def update_role(
         raise NotFoundError(f"Роль с ID {role_id} не найдена")
     
     # Защищаем системные роли
-    system_roles = ["Администратор", "Модератор", "Оператор", "Наблюдатель"]
+    system_roles = ["CHAIRMAN", "DEPUTY_CHAIRMAN", "DIVISION_HEAD", "DORMITORY_HEAD"]
     if existing.name in system_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -110,12 +110,12 @@ async def delete_role(
     role_id: int,
     _: CSRFProtection,
     repo: RoleRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Удалить роль.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем существование
     existing = await repo.get_by_id(role_id)
@@ -123,7 +123,7 @@ async def delete_role(
         raise NotFoundError(f"Роль с ID {role_id} не найдена")
     
     # Защищаем системные роли
-    system_roles = ["Администратор", "Модератор", "Оператор", "Наблюдатель"]
+    system_roles = ["CHAIRMAN", "DEPUTY_CHAIRMAN", "DIVISION_HEAD", "DORMITORY_HEAD"]
     if existing.name in system_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -23,10 +23,12 @@ import {
   Select,
   MenuItem,
   CircularProgress,
+  Autocomplete,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import api from '../services/api';  // Import the configured API instance
 
 const Hostels = () => {
   const [hostelStudents, setHostelStudents] = useState([]);
@@ -34,35 +36,43 @@ const Hostels = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   useEffect(() => {
     fetchHostelStudents();
-    fetchStudents();
   }, []);
 
   const fetchHostelStudents = async () => {
     setLoading(true);
     setError('');
     try {
-      // Пока используем моковые данные, так как в БД пусто
-      const mockHostelStudents = [];
-      setHostelStudents(mockHostelStudents);
+      const response = await api.get('/hostels');
+      if (response.data && Array.isArray(response.data.items)) {
+        setHostelStudents(response.data.items);
+      } else {
+        setHostelStudents([]);
+      }
     } catch (err) {
       console.error('Failed to load hostel students:', err);
-      setError('Не удалось загрузить данные об общежитии');
+      setError(err.response?.data?.detail || 'Не удалось загрузить данные об общежитии');
       setHostelStudents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStudents = async () => {
+  const searchStudents = async (searchText) => {
+    if (!searchText) {
+      setStudents([]);
+      return;
+    }
     try {
-      // TODO: Загрузить список студентов для выпадающего списка
-      const mockStudents = [];
-      setStudents(mockStudents);
+      const response = await api.get('/students/list', { params: { search: searchText } });
+      const data = response.data;
+      setStudents(Array.isArray(data) ? data : (data.items || []));
     } catch (err) {
-      console.error('Failed to load students:', err);
+      console.error('Failed to search students:', err);
       setStudents([]);
     }
   };
@@ -72,12 +82,13 @@ const Hostels = () => {
       open: true,
       type: 'add',
       data: {
-        student_id: '',
+        studentid: '',
         hostel: 1,
         room: '',
         comment: '',
       },
     });
+    setSelectedStudent(null);
   };
 
   const handleEditHostelStudent = (student) => {
@@ -91,34 +102,66 @@ const Hostels = () => {
   const handleDeleteHostelStudent = async (id) => {
     if (window.confirm('Вы уверены, что хотите удалить эту запись?')) {
       try {
-        // TODO: Реальное удаление
-        setHostelStudents(hostelStudents.filter(h => h.id !== id));
+        await api.delete(`/hostels/${id}`);
+        await fetchHostelStudents();
       } catch (err) {
-        setError('Не удалось удалить запись');
+        console.error('Failed to delete hostel record:', err);
+        setError(err.response?.data?.detail || 'Не удалось удалить запись');
       }
     }
   };
 
   const handleDialogClose = () => {
     setDialog({ open: false, type: null, data: null });
+    setSelectedStudent(null);
+    setError('');
   };
 
   const handleDialogSave = async () => {
+    if (!selectedStudent && dialog.type === 'add') {
+      setError('Необходимо выбрать студента');
+      return;
+    }
+
     try {
-      // TODO: Реальное сохранение
+      const data = {
+        ...dialog.data,
+        studentid: dialog.type === 'add' ? selectedStudent.id : dialog.data.studentid,
+      };
+
+      if (dialog.type === 'add') {
+        await api.post('/hostels', data);
+      } else {
+        await api.put(`/hostels/${dialog.data.id}`, data);
+      }
+
       handleDialogClose();
-      fetchHostelStudents();
+      await fetchHostelStudents();
     } catch (err) {
-      setError('Не удалось сохранить данные');
+      console.error('Failed to save hostel record:', err);
+      const errorMessage = err.response?.data?.detail || 'Не удалось сохранить данные';
+      setError(errorMessage);
     }
   };
 
-  const handleInputChange = (event) => {
-    const { name, value } = event.target;
-    setDialog(prev => ({
-      ...prev,
-      data: { ...prev.data, [name]: value },
-    }));
+  const handleStudentSearch = (event, value) => {
+    setSearchTerm(value);
+    if (value) {
+      searchStudents(value);
+    }
+  };
+
+  const handleStudentSelect = (event, value) => {
+    setSelectedStudent(value);
+    if (value) {
+      setDialog(prev => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          studentid: value.id,
+        },
+      }));
+    }
   };
 
   return (
@@ -148,7 +191,6 @@ const Hostels = () => {
           <TableHead>
             <TableRow>
               <TableCell>ФИО студента</TableCell>
-              <TableCell>Группа</TableCell>
               <TableCell>Общежитие</TableCell>
               <TableCell>Комната</TableCell>
               <TableCell>Комментарий</TableCell>
@@ -158,13 +200,13 @@ const Hostels = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={5} align="center">
                   <CircularProgress />
                 </TableCell>
               </TableRow>
             ) : hostelStudents.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={5} align="center">
                   Нет данных о проживающих в общежитии
                 </TableCell>
               </TableRow>
@@ -172,7 +214,6 @@ const Hostels = () => {
               hostelStudents.map((student) => (
                 <TableRow key={student.id}>
                   <TableCell>{student.student_name}</TableCell>
-                  <TableCell>{student.group_name}</TableCell>
                   <TableCell>№{student.hostel}</TableCell>
                   <TableCell>{student.room}</TableCell>
                   <TableCell>{student.comment}</TableCell>
@@ -204,29 +245,37 @@ const Hostels = () => {
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             {dialog.type === 'add' && (
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Студент</InputLabel>
-                <Select
-                  name="student_id"
-                  value={dialog.data?.student_id || ''}
-                  onChange={handleInputChange}
-                  label="Студент"
-                  required
-                >
-                  {students.map((student) => (
-                    <MenuItem key={student.id} value={student.id}>
-                      {student.full_name} ({student.group_name})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                fullWidth
+                options={students}
+                getOptionLabel={(option) => option.fullname || ''}
+                inputValue={searchTerm}
+                onInputChange={handleStudentSearch}
+                onChange={handleStudentSelect}
+                value={selectedStudent}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Поиск студента"
+                    required
+                    sx={{ mb: 2 }}
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value?.id}
+                loading={loading}
+                loadingText="Поиск..."
+                noOptionsText="Нет подходящих студентов"
+              />
             )}
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Общежитие</InputLabel>
               <Select
                 name="hostel"
                 value={dialog.data?.hostel || 1}
-                onChange={handleInputChange}
+                onChange={(e) => setDialog(prev => ({
+                  ...prev,
+                  data: { ...prev.data, hostel: e.target.value }
+                }))}
                 label="Общежитие"
                 required
               >
@@ -243,7 +292,10 @@ const Hostels = () => {
               name="room"
               type="number"
               value={dialog.data?.room || ''}
-              onChange={handleInputChange}
+              onChange={(e) => setDialog(prev => ({
+                ...prev,
+                data: { ...prev.data, room: e.target.value }
+              }))}
               required
               sx={{ mb: 2 }}
             />
@@ -252,7 +304,10 @@ const Hostels = () => {
               label="Комментарий"
               name="comment"
               value={dialog.data?.comment || ''}
-              onChange={handleInputChange}
+              onChange={(e) => setDialog(prev => ({
+                ...prev,
+                data: { ...prev.data, comment: e.target.value }
+              }))}
               multiline
               rows={3}
             />

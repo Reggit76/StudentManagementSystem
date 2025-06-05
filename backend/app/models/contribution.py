@@ -9,10 +9,10 @@ from .base import BaseDBModel, BaseCreateModel, BaseUpdateModel
 
 class ContributionBase(BaseModel):
     """Базовая модель взноса"""
-    studentid: int = Field(..., description="ID студента", alias="student_id")
+    studentid: int = Field(..., description="ID студента")
     semester: int = Field(..., ge=1, le=2, description="Семестр")
     amount: Decimal = Field(..., ge=Decimal('0'), lt=Decimal('100000'), description="Сумма взноса")
-    paymentdate: Optional[date] = Field(None, description="Дата оплаты", alias="payment_date")
+    paymentdate: Optional[date] = Field(None, description="Дата оплаты")
     year: int = Field(
         default_factory=lambda: date.today().year,
         ge=2000,
@@ -48,7 +48,7 @@ class ContributionUpdate(BaseUpdateModel):
     """Модель для обновления взноса"""
     semester: Optional[int] = Field(None, ge=1, le=2, description="Семестр")
     amount: Optional[Decimal] = Field(None, ge=Decimal('0'), lt=Decimal('100000'), description="Сумма взноса")
-    paymentdate: Optional[date] = Field(None, description="Дата оплаты", alias="payment_date")
+    paymentdate: Optional[date] = Field(None, description="Дата оплаты")
     year: Optional[int] = Field(None, ge=2000, le=2100, description="Год взноса")
 
 

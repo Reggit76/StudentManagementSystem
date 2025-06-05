@@ -75,49 +75,6 @@ async def get_subdivisions(
         pages=(total + pagination.size - 1) // pagination.size
     )
 
-@router.get("", response_model=PaginatedResponse[Subdivision])
-async def get_subdivisions(
-    pagination: PaginationParams,
-    current_user: CurrentUser,
-    repo: SubdivisionRepo,
-    search: Optional[str] = Query(None, description="Поиск по названию")
-):
-    """
-    Получить список подразделений с пагинацией.
-    
-    - **page**: номер страницы (по умолчанию 1)
-    - **size**: размер страницы (по умолчанию 50, максимум 100)
-    - **search**: поиск по названию
-    """
-    # Получаем общее количество
-    filters = {}
-    if search:
-        # Для поиска используем ILIKE в репозитории
-        filters['name_search'] = search
-    
-    total = await repo.count(filters)
-    
-    # Получаем данные с пагинацией
-    offset = (pagination.page - 1) * pagination.size
-    items = await repo.get_all(
-        limit=pagination.size,
-        offset=offset,
-        order_by=pagination.sort_by or "name",
-        order_desc=(pagination.sort_order == "desc")
-    )
-    
-    # Фильтруем по поиску если нужно (так как базовый get_all не поддерживает поиск)
-    if search:
-        items = [item for item in items if search.lower() in item.name.lower()]
-    
-    return PaginatedResponse(
-        items=items,
-        total=total,
-        page=pagination.page,
-        size=pagination.size,
-        pages=(total + pagination.size - 1) // pagination.size
-    )
-
 
 @router.get("/with-stats", response_model=List[SubdivisionWithStats])
 async def get_subdivisions_with_stats(
@@ -196,12 +153,12 @@ async def update_subdivision(
     data: SubdivisionUpdate,
     _: CSRFProtection,
     repo: SubdivisionRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Обновить подразделение.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем существование
     existing = await repo.get_by_id(subdivision_id)
@@ -231,12 +188,12 @@ async def delete_subdivision(
     subdivision_id: int,
     _: CSRFProtection,
     repo: SubdivisionRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Удалить подразделение.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     
     ВНИМАНИЕ: Удаление подразделения приведет к каскадному удалению всех связанных данных!
     """

@@ -7,7 +7,7 @@ from .base import BaseDBModel, BaseCreateModel, BaseUpdateModel
 
 class HostelStudentBase(BaseModel):
     """Базовая модель проживающего в общежитии"""
-    studentid: int = Field(..., description="ID студента", alias="student_id")
+    studentid: int = Field(..., description="ID студента")
     hostel: int = Field(..., ge=1, le=20, description="Номер общежития")
     room: int = Field(..., ge=1, description="Номер комнаты")
     comment: Optional[str] = Field(None, description="Комментарий")

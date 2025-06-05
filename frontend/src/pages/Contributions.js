@@ -24,10 +24,12 @@ import {
   MenuItem,
   CircularProgress,
   Chip,
+  Autocomplete,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import api from '../services/api';
 
 const Contributions = () => {
   const [contributions, setContributions] = useState([]);
@@ -35,35 +37,43 @@ const Contributions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState({ open: false, type: null, data: null });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   useEffect(() => {
     fetchContributions();
-    fetchStudents();
   }, []);
 
   const fetchContributions = async () => {
     setLoading(true);
     setError('');
     try {
-      // Пока используем моковые данные, так как в БД пусто
-      const mockContributions = [];
-      setContributions(mockContributions);
+      const response = await api.get('/contributions');
+      if (response.data && Array.isArray(response.data.items)) {
+        setContributions(response.data.items);
+      } else {
+        setContributions([]);
+      }
     } catch (err) {
       console.error('Failed to load contributions:', err);
-      setError('Не удалось загрузить данные о взносах');
+      setError(err.response?.data?.detail || 'Не удалось загрузить данные о взносах');
       setContributions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStudents = async () => {
+  const searchStudents = async (searchText) => {
+    if (!searchText) {
+      setStudents([]);
+      return;
+    }
     try {
-      // TODO: Загрузить список студентов
-      const mockStudents = [];
-      setStudents(mockStudents);
+      const response = await api.get('/students/list', { params: { search: searchText } });
+      const data = response.data;
+      setStudents(Array.isArray(data) ? data : (data.items || []));
     } catch (err) {
-      console.error('Failed to load students:', err);
+      console.error('Failed to search students:', err);
       setStudents([]);
     }
   };
@@ -73,13 +83,14 @@ const Contributions = () => {
       open: true,
       type: 'add',
       data: {
-        student_id: '',
+        studentid: '',
         semester: 1,
         amount: '',
-        payment_date: new Date().toISOString().split('T')[0],
+        paymentdate: '',
         year: new Date().getFullYear(),
       },
     });
+    setSelectedStudent(null);
   };
 
   const handleEditContribution = (contribution) => {
@@ -88,7 +99,7 @@ const Contributions = () => {
       type: 'edit',
       data: {
         ...contribution,
-        payment_date: contribution.payment_date ? new Date(contribution.payment_date).toISOString().split('T')[0] : '',
+        paymentdate: contribution.paymentdate || '',
       },
     });
   };
@@ -96,8 +107,8 @@ const Contributions = () => {
   const handleDeleteContribution = async (id) => {
     if (window.confirm('Вы уверены, что хотите удалить этот взнос?')) {
       try {
-        // TODO: Реальное удаление
-        setContributions(contributions.filter(c => c.id !== id));
+        await api.delete(`/contributions/${id}`);
+        await fetchContributions();
       } catch (err) {
         setError('Не удалось удалить взнос');
       }
@@ -106,24 +117,55 @@ const Contributions = () => {
 
   const handleDialogClose = () => {
     setDialog({ open: false, type: null, data: null });
+    setSelectedStudent(null);
+    setError('');
   };
 
   const handleDialogSave = async () => {
+    if (!selectedStudent && dialog.type === 'add') {
+      setError('Необходимо выбрать студента');
+      return;
+    }
+
     try {
-      // TODO: Реальное сохранение
+      const data = {
+        ...dialog.data,
+        studentid: dialog.type === 'add' ? selectedStudent.id : dialog.data.studentid,
+      };
+
+      if (dialog.type === 'add') {
+        await api.post('/contributions', data);
+      } else {
+        await api.put(`/contributions/${dialog.data.id}`, data);
+      }
+
       handleDialogClose();
-      fetchContributions();
+      await fetchContributions();
     } catch (err) {
-      setError('Не удалось сохранить взнос');
+      console.error('Failed to save contribution:', err);
+      const errorMessage = err.response?.data?.detail || 'Не удалось сохранить взнос';
+      setError(errorMessage);
     }
   };
 
-  const handleInputChange = (event) => {
-    const { name, value } = event.target;
-    setDialog(prev => ({
-      ...prev,
-      data: { ...prev.data, [name]: value },
-    }));
+  const handleStudentSearch = (event, value) => {
+    setSearchTerm(value);
+    if (value) {
+      searchStudents(value);
+    }
+  };
+
+  const handleStudentSelect = (event, value) => {
+    setSelectedStudent(value);
+    if (value) {
+      setDialog(prev => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          studentid: value.id,
+        },
+      }));
+    }
   };
 
   const formatDate = (dateString) => {
@@ -236,39 +278,36 @@ const Contributions = () => {
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             {dialog.type === 'add' && (
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Студент</InputLabel>
-                <Select
-                  name="student_id"
-                  value={dialog.data?.student_id || ''}
-                  onChange={handleInputChange}
-                  label="Студент"
-                  required
-                >
-                  {students.map((student) => (
-                    <MenuItem key={student.id} value={student.id}>
-                      {student.full_name} ({student.group_name})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                fullWidth
+                options={students}
+                getOptionLabel={(option) => option.fullname || ''}
+                inputValue={searchTerm}
+                onInputChange={handleStudentSearch}
+                onChange={handleStudentSelect}
+                value={selectedStudent}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Поиск студента"
+                    required
+                    sx={{ mb: 2 }}
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value?.id}
+                loading={loading}
+                loadingText="Поиск..."
+                noOptionsText="Нет подходящих студентов"
+              />
             )}
-            <TextField
-              fullWidth
-              label="Сумма взноса"
-              name="amount"
-              type="number"
-              value={dialog.data?.amount || ''}
-              onChange={handleInputChange}
-              required
-              sx={{ mb: 2 }}
-            />
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Семестр</InputLabel>
               <Select
-                name="semester"
                 value={dialog.data?.semester || 1}
-                onChange={handleInputChange}
+                onChange={(e) => setDialog(prev => ({
+                  ...prev,
+                  data: { ...prev.data, semester: e.target.value }
+                }))}
                 label="Семестр"
                 required
               >
@@ -278,23 +317,40 @@ const Contributions = () => {
             </FormControl>
             <TextField
               fullWidth
-              label="Год"
-              name="year"
+              label="Сумма взноса"
               type="number"
-              value={dialog.data?.year || new Date().getFullYear()}
-              onChange={handleInputChange}
+              value={dialog.data?.amount || ''}
+              onChange={(e) => setDialog(prev => ({
+                ...prev,
+                data: { ...prev.data, amount: e.target.value }
+              }))}
               required
               sx={{ mb: 2 }}
             />
             <TextField
               fullWidth
               label="Дата оплаты"
-              name="payment_date"
               type="date"
-              value={dialog.data?.payment_date || ''}
-              onChange={handleInputChange}
+              value={dialog.data?.paymentdate || ''}
+              onChange={(e) => setDialog(prev => ({
+                ...prev,
+                data: { ...prev.data, paymentdate: e.target.value }
+              }))}
+              InputLabelProps={{
+                shrink: true,
+              }}
               sx={{ mb: 2 }}
-              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Год"
+              type="number"
+              value={dialog.data?.year || new Date().getFullYear()}
+              onChange={(e) => setDialog(prev => ({
+                ...prev,
+                data: { ...prev.data, year: e.target.value }
+              }))}
+              required
             />
           </Box>
         </DialogContent>

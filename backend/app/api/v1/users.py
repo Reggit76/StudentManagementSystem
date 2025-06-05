@@ -96,12 +96,12 @@ async def create_user(
     repo: UserRepo,
     role_repo: RoleRepo,
     subdivision_repo: SubdivisionRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Создать нового пользователя.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем уникальность логина
     existing = await repo.get_by_login(data.login)
@@ -226,12 +226,12 @@ async def delete_user(
     user_id: int,
     _: CSRFProtection,
     repo: UserRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Удалить пользователя.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем существование
     existing = await repo.get_by_id(user_id)
@@ -270,12 +270,12 @@ async def add_user_role(
     _: CSRFProtection,
     repo: UserRepo,
     role_repo: RoleRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Добавить роль пользователю.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     # Проверяем существование пользователя и роли
     if not await repo.exists(user_id):
@@ -302,12 +302,12 @@ async def remove_user_role(
     role_id: int,
     _: CSRFProtection,
     repo: UserRepo,
-    current_user: CurrentUser = require_roles(["Администратор"])
+    current_user: CurrentUser = require_roles(["CHAIRMAN"])
 ):
     """
     Удалить роль у пользователя.
     
-    Требуется роль: Администратор
+    Требуется роль: CHAIRMAN
     """
     try:
         success = await repo.remove_role(user_id, role_id)
